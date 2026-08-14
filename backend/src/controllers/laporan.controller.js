@@ -464,4 +464,61 @@ function buildPelanggaranWhere(params) {
   return where;
 }
 
-module.exports = { getRekapAbsensi, getRekapPerKelas, getRekapPelanggaran, exportPDF, exportExcel, exportCSV };
+// ── Rekap Absensi Detail (Matriks) ─────────────────────────
+// Return: { tanggal: ['2026-07-07',...], siswa: [{ siswa, absensi:[{tanggal,status},...] }] }
+const getRekapAbsensiDetail = asyncHandler(async (req, res) => {
+  const { tanggalMulai, tanggalSelesai, kelasId } = req.query;
+  if (!tanggalMulai || !tanggalSelesai) return badRequest(res, 'Tanggal wajib diisi');
+  if (!kelasId) return badRequest(res, 'Kelas wajib dipilih untuk rekap matriks');
+
+  const tglMulai = new Date(tanggalMulai);
+  const tglAkhir = new Date(tanggalSelesai);
+  tglAkhir.setHours(23, 59, 59, 999);
+
+  // Ambil semua absensi dalam rentang untuk kelas yang dipilih
+  const absensiList = await prisma.absensi.findMany({
+    where: {
+      kelasId,
+      tanggal: { gte: tglMulai, lte: tglAkhir },
+    },
+    orderBy: { tanggal: 'asc' },
+    select: {
+      siswaId: true,
+      tanggal: true,
+      status: true,
+      siswa: { select: { id: true, nama: true, nis: true, nisn: true } },
+    },
+  });
+
+  // Ambil daftar siswa aktif di kelas ini
+  const kelasData = await prisma.kelasSiswa.findMany({
+    where: { kelasId, aktif: true },
+    orderBy: { siswa: { nama: 'asc' } },
+    select: { siswa: { select: { id: true, nama: true, nis: true, nisn: true } } },
+  });
+
+  // Kumpulkan semua tanggal unik (hari kerja yang ada data absensi)
+  const tanggalSet = new Set();
+  absensiList.forEach(a => {
+    tanggalSet.add(a.tanggal.toISOString().split('T')[0]);
+  });
+  const tanggalList = [...tanggalSet].sort();
+
+  // Susun map siswaId → [{tanggal, status}]
+  const absensiMap = {};
+  absensiList.forEach(a => {
+    const tgl = a.tanggal.toISOString().split('T')[0];
+    if (!absensiMap[a.siswaId]) absensiMap[a.siswaId] = [];
+    absensiMap[a.siswaId].push({ tanggal: tgl, status: a.status });
+  });
+
+  // Susun hasil per siswa
+  const siswaResult = kelasData.map(ks => ({
+    siswa: ks.siswa,
+    absensi: absensiMap[ks.siswa.id] || [],
+  }));
+
+  return success(res, { tanggal: tanggalList, siswa: siswaResult });
+});
+
+module.exports = { getRekapAbsensi, getRekapPerKelas, getRekapPelanggaran, getRekapAbsensiDetail, exportPDF, exportExcel, exportCSV };

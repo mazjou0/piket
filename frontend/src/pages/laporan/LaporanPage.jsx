@@ -11,6 +11,7 @@ const REPORT_TYPES = [
   { key: 'absensi-siswa',  label: 'Absensi per Siswa',        exportType: 'absensi'     },
   { key: 'absensi-kelas',  label: 'Absensi per Kelas',        exportType: 'rekap-kelas' },
   { key: 'pelanggaran',    label: 'Rekapitulasi Pelanggaran',  exportType: 'pelanggaran' },
+  { key: 'matriks',        label: 'Rekap Presensi Matriks',   exportType: null          },
 ];
 
 const PAGE_SIZES = [
@@ -63,10 +64,18 @@ export default function LaporanPage() {
     enabled: reportType === 'pelanggaran' && !!tanggalMulai && !!tanggalSelesai,
   });
 
+  // Query data matriks — detail absensi harian per siswa per kelas
+  const { data: matriksData, isLoading: l4 } = useQuery({
+    queryKey: ['rekap-matriks', params],
+    queryFn: () => api.get('/laporan/rekap-absensi-detail', { params }).then(r => r.data.data),
+    enabled: reportType === 'matriks' && !!tanggalMulai && !!tanggalSelesai && !!kelasId,
+  });
+
   const currentData = reportType === 'absensi-siswa' ? rekapAbsensi
                     : reportType === 'absensi-kelas' ? rekapKelas
+                    : reportType === 'matriks'       ? matriksData
                     : rekapPelanggaran;
-  const isLoading   = l1 || l2 || l3;
+  const isLoading   = l1 || l2 || l3 || l4;
 
   // Filter absensi per siswa berdasarkan nama / NIS / NISN
   const filteredAbsensi = rekapAbsensi?.filter(r => {
@@ -587,6 +596,153 @@ export default function LaporanPage() {
                     : reportType === 'absensi-kelas' ? kelasCols
                     : pelanggaranCols;
 
+  // ── Print Matriks Presensi ────────────────────────────────
+  const handlePrintMatriks = () => {
+    if (!matriksData?.siswa?.length) { toast.error('Tidak ada data. Pastikan sudah pilih kelas.'); return; }
+
+    const schoolName  = sekolahInfo?.nama    || 'SMKN 1 Kras';
+    const schoolAddr  = sekolahInfo?.alamat  || 'Jl. Raya Kras, Kediri, Jawa Timur';
+    const schoolPhone = sekolahInfo?.telepon || '';
+    const psSize      = pageSize === 'F4' ? '330.2mm 215.9mm' : '297mm 210mm'; // landscape
+    const today       = new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
+    const signerName  = user?.nama || user?.username || '';
+    const signerNip   = user?.nip  || '';
+    const namaKelas   = kelasList?.find(k => k.id === kelasId)?.nama || '';
+    const period      = `${tanggalMulai} s/d ${tanggalSelesai}`;
+
+    const siswaList = matriksData.siswa;   // [{siswa, absensi:[{tanggal,status},...]}]
+    const tanggalList = matriksData.tanggal; // ['2026-07-07','2026-07-08',...]
+
+    // Warna per status
+    const STATUS_COLOR = {
+      HADIR:'#16a34a', SAKIT:'#f59e0b', IZIN:'#3b82f6',
+      ALPHA:'#dc2626', DISPENSASI:'#8b5cf6', TERLAMBAT:'#f97316',
+      PULANG_CEPAT:'#ec4899', DINAS:'#0891b2', LAINNYA:'#64748b',
+    };
+    const STATUS_LABEL = {
+      HADIR:'H', SAKIT:'S', IZIN:'I', ALPHA:'A',
+      DISPENSASI:'D', TERLAMBAT:'T', PULANG_CEPAT:'PC', DINAS:'DN', LAINNYA:'L',
+    };
+    const STATUS_BG = {
+      HADIR:'#dcfce7', SAKIT:'#fef9c3', IZIN:'#dbeafe',
+      ALPHA:'#fee2e2', DISPENSASI:'#ede9fe', TERLAMBAT:'#ffedd5',
+      PULANG_CEPAT:'#fce7f3', DINAS:'#cffafe', LAINNYA:'#f1f5f9',
+    };
+
+    // Format tanggal jadi dd/MM
+    const fmtTgl = (s) => {
+      const d = new Date(s);
+      return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+    };
+    const fmtHari = (s) => {
+      const hari = ['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
+      return hari[new Date(s).getDay()];
+    };
+
+    // Header kolom tanggal
+    const thTanggal = tanggalList.map(t =>
+      `<th style="min-width:26px;max-width:26px;padding:2px 1px;font-size:7px;background:#1e293b;color:#fff;border:0.5px solid #475569">
+        <div style="writing-mode:vertical-lr;transform:rotate(180deg);white-space:nowrap">${fmtHari(t)}<br/>${fmtTgl(t)}</div>
+      </th>`
+    ).join('');
+
+    // Baris data tiap siswa
+    const rows = siswaList.map((item, idx) => {
+      // Buat map tanggal→status
+      const map = {};
+      (item.absensi || []).forEach(a => {
+        const tgl = a.tanggal?.split('T')[0] || a.tanggal;
+        map[tgl] = a.status;
+      });
+
+      // Hitung rekap
+      const counts = { H:0, S:0, I:0, A:0, D:0, T:0, PC:0, DN:0, L:0 };
+      Object.values(map).forEach(st => {
+        const lbl = STATUS_LABEL[st];
+        if (lbl) counts[lbl] = (counts[lbl]||0) + 1;
+      });
+      const total = tanggalList.length;
+
+      const cells = tanggalList.map(t => {
+        const st = map[t];
+        if (!st || st === 'HADIR') {
+          return `<td style="min-width:26px;max-width:26px;padding:1px;text-align:center;border:0.5px solid #e2e8f0;font-size:7px;background:${st==='HADIR'?'#dcfce7':'#fff'};color:${st==='HADIR'?'#16a34a':'#ccc'}">${st?'H':'-'}</td>`;
+        }
+        return `<td style="min-width:26px;max-width:26px;padding:1px;text-align:center;border:0.5px solid #e2e8f0;font-size:7px;background:${STATUS_BG[st]||'#fff'};color:${STATUS_COLOR[st]||'#111'};font-weight:700">${STATUS_LABEL[st]||'-'}</td>`;
+      }).join('');
+
+      const stripe = idx%2===1 ? 'background:#f8fafc' : '';
+      return `<tr style="${stripe}">
+        <td style="text-align:center;border:0.5px solid #e2e8f0;font-size:8px;padding:2px 3px">${idx+1}</td>
+        <td style="border:0.5px solid #e2e8f0;font-size:8px;padding:2px 4px;white-space:nowrap;font-weight:600">${item.siswa?.nama||'-'}</td>
+        <td style="text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:2px 3px;color:#16a34a;font-weight:700">${counts.H}</td>
+        <td style="text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:2px 3px;color:#f59e0b;font-weight:700">${counts.S}</td>
+        <td style="text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:2px 3px;color:#3b82f6;font-weight:700">${counts.I}</td>
+        <td style="text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:2px 3px;color:#dc2626;font-weight:700">${counts.A}</td>
+        <td style="text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:2px 3px;color:#f97316;font-weight:700">${counts.T}</td>
+        ${cells}
+      </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html lang="id"><head>
+    <meta charset="utf-8"/>
+    <title>Rekap Presensi Matriks - ${namaKelas}</title>
+    <style>
+      @page { size: ${psSize}; margin: 10mm 8mm 12mm; }
+      * { box-sizing:border-box; margin:0; padding:0; }
+      body { font-family:Arial,sans-serif; font-size:9px; color:#111; }
+      .kop { text-align:center; border-bottom:2.5px solid #1e293b; padding-bottom:6px; margin-bottom:6px; }
+      .kop-nama { font-size:13px; font-weight:800; }
+      .kop-sub  { font-size:8px; color:#555; margin-top:2px; }
+      .judul    { font-size:11px; font-weight:700; text-align:center; margin:5px 0 2px; text-transform:uppercase; }
+      .period   { font-size:8px; text-align:center; color:#555; margin-bottom:6px; }
+      table { border-collapse:collapse; font-size:8px; }
+      .legend { font-size:8px; color:#555; margin-top:6px; }
+      .ttd  { display:flex; justify-content:flex-end; margin-top:14px; }
+      .ttd-box { text-align:center; min-width:170px; line-height:1.8; font-size:9px; }
+      .ttd-name { font-weight:700; }
+      @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
+    </style></head><body>
+    <div class="kop">
+      <div class="kop-nama">${schoolName}</div>
+      <div class="kop-sub">${schoolAddr}${schoolPhone?' • Telp. '+schoolPhone:''}</div>
+    </div>
+    <div class="judul">Rekap Presensi TA. ${new Date(tanggalMulai).getFullYear()}–${new Date(tanggalSelesai).getFullYear()}</div>
+    <div class="period">Kelas: ${namaKelas} &nbsp;|&nbsp; Periode: ${period}</div>
+
+    <table style="width:100%">
+      <thead>
+        <tr>
+          <th style="width:24px;background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 2px">No</th>
+          <th style="background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 4px;text-align:left">Nama Siswa</th>
+          <th style="width:22px;background:#16a34a;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 2px">H</th>
+          <th style="width:22px;background:#f59e0b;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 2px">S</th>
+          <th style="width:22px;background:#3b82f6;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 2px">I</th>
+          <th style="width:22px;background:#dc2626;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 2px">A</th>
+          <th style="width:22px;background:#f97316;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 2px">T</th>
+          ${thTanggal}
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+
+    <p class="legend">Ket: H=Hadir · S=Sakit · I=Izin · A=Alpha · T=Terlambat · D=Dispensasi · PC=Pulang Cepat · DN=Dinas · L=Lainnya</p>
+    <p class="legend" style="margin-top:2px">Dicetak: ${new Date().toLocaleString('id-ID')} | Total: ${siswaList.length} siswa | ${tanggalList.length} hari</p>
+
+    <div class="ttd"><div class="ttd-box">
+      Kras, ${today}<br/>Wali Kelas,<br/><br/><br/>
+      <div class="ttd-name">${signerName||'___________________________'}</div>
+      ${signerNip?`NIP. ${signerNip}`:''}
+    </div></div>
+    </body></html>`;
+
+    const w = window.open('', '_blank', 'width=1200,height=800');
+    if (!w) { toast.error('Pop-up diblokir browser. Izinkan pop-up untuk halaman ini.'); return; }
+    w.document.write(html);
+    w.document.close();
+    w.onload = () => { w.focus(); w.print(); };
+  };
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
 
@@ -631,26 +787,39 @@ export default function LaporanPage() {
           </div>
 
           {/* Export PDF — client-side print */}
-          <button onClick={handlePrint} className="btn btn-danger" style={{ gap:6 }}>
-            <FileText style={{ width:15, height:15 }} /> Export PDF
-          </button>
+          {reportType !== 'matriks' && (
+            <button onClick={handlePrint} className="btn btn-danger" style={{ gap:6 }}>
+              <FileText style={{ width:15, height:15 }} /> Export PDF
+            </button>
+          )}
+          {reportType === 'matriks' && (
+            <button onClick={handlePrintMatriks} className="btn btn-danger" style={{ gap:6 }}>
+              <Printer style={{ width:15, height:15 }} /> Print Matriks
+            </button>
+          )}
 
           {/* Export Excel — server-side */}
-          <button onClick={() => handleExport('excel')} disabled={!!exporting} className="btn btn-success" style={{ gap:6 }}>
-            <FileSpreadsheet style={{ width:15, height:15 }} />
-            {exporting === 'excel' ? 'Mengekspor...' : 'Export Excel'}
-          </button>
+          {reportType !== 'matriks' && (
+            <button onClick={() => handleExport('excel')} disabled={!!exporting} className="btn btn-success" style={{ gap:6 }}>
+              <FileSpreadsheet style={{ width:15, height:15 }} />
+              {exporting === 'excel' ? 'Mengekspor...' : 'Export Excel'}
+            </button>
+          )}
 
           {/* Export CSV */}
-          <button onClick={() => handleExport('csv')} disabled={!!exporting} className="btn btn-secondary" style={{ gap:6 }}>
-            <FileDown style={{ width:15, height:15 }} />
-            {exporting === 'csv' ? 'Mengekspor...' : 'CSV'}
-          </button>
+          {reportType !== 'matriks' && (
+            <button onClick={() => handleExport('csv')} disabled={!!exporting} className="btn btn-secondary" style={{ gap:6 }}>
+              <FileDown style={{ width:15, height:15 }} />
+              {exporting === 'csv' ? 'Mengekspor...' : 'CSV'}
+            </button>
+          )}
 
           {/* Print */}
-          <button onClick={handlePrint} className="btn btn-secondary" style={{ gap:6 }}>
-            <Printer style={{ width:15, height:15 }} /> Print
-          </button>
+          {reportType !== 'matriks' && (
+            <button onClick={handlePrint} className="btn btn-secondary" style={{ gap:6 }}>
+              <Printer style={{ width:15, height:15 }} /> Print
+            </button>
+          )}
         </div>
       </div>
 
@@ -790,18 +959,141 @@ export default function LaporanPage() {
         </>
       )}
 
-      {/* ── Tabel data ── */}
-      <div className="card" style={{ padding:0, overflow:'hidden', marginBottom:24 }}>
-        <div style={{ overflowX:'auto' }}>
-          <DataTable
-            columns={currentCols}
-            data={displayData}
-            loading={isLoading}
-            emptyMessage="Tidak ada data untuk filter yang dipilih"
-            tableStyle={reportType === 'absensi-kelas' ? { tableLayout:'fixed', width:'100%' } : undefined}
-          />
+      {/* ── Tabel data / Matriks ── */}
+      {reportType === 'matriks' ? (
+        /* ── Preview Matriks ── */
+        <div className="card" style={{ padding: 12, marginBottom: 24 }}>
+          {!kelasId ? (
+            <div style={{ textAlign:'center', padding:'40px 0', color:'var(--color-muted)' }}>
+              <p style={{ fontSize:14, fontWeight:500 }}>Pilih kelas terlebih dahulu untuk melihat rekap matriks</p>
+            </div>
+          ) : l4 ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {Array.from({length:5}).map((_,i) => (
+                <div key={i} style={{ height:36, borderRadius:8, background:'var(--color-surface-hover)', animation:'pulse 1.5s ease-in-out infinite' }} />
+              ))}
+            </div>
+          ) : !matriksData?.siswa?.length ? (
+            <div style={{ textAlign:'center', padding:'40px 0', color:'var(--color-muted)' }}>
+              <p>Tidak ada data absensi untuk periode dan kelas yang dipilih</p>
+            </div>
+          ) : (
+            <>
+              {/* Info */}
+              <div style={{ display:'flex', gap:16, marginBottom:10, flexWrap:'wrap', alignItems:'center' }}>
+                <span style={{ fontSize:13, fontWeight:600, color:'var(--color-foreground)' }}>
+                  {matriksData.siswa.length} siswa · {matriksData.tanggal.length} hari
+                </span>
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                  {[
+                    { k:'H', label:'Hadir',   color:'#16a34a', bg:'#dcfce7' },
+                    { k:'S', label:'Sakit',   color:'#f59e0b', bg:'#fef9c3' },
+                    { k:'I', label:'Izin',    color:'#3b82f6', bg:'#dbeafe' },
+                    { k:'A', label:'Alpha',   color:'#dc2626', bg:'#fee2e2' },
+                    { k:'T', label:'Terlambat',color:'#f97316',bg:'#ffedd5' },
+                    { k:'D', label:'Dispensasi',color:'#8b5cf6',bg:'#ede9fe' },
+                  ].map(s => (
+                    <span key={s.k} style={{ padding:'2px 8px', borderRadius:5, fontSize:11, fontWeight:700, background:s.bg, color:s.color, border:`1px solid ${s.color}30` }}>
+                      {s.k} = {s.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tabel matriks — scroll horizontal */}
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ borderCollapse:'collapse', fontSize:10, whiteSpace:'nowrap' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ padding:'4px 6px', background:'#1e293b', color:'#fff', border:'1px solid #475569', fontSize:10, position:'sticky', left:0, zIndex:2 }}>No</th>
+                      <th style={{ padding:'4px 8px', background:'#1e293b', color:'#fff', border:'1px solid #475569', fontSize:10, textAlign:'left', position:'sticky', left:28, zIndex:2, minWidth:160 }}>Nama Siswa</th>
+                      {['H','S','I','A','T'].map(k => (
+                        <th key={k} style={{ padding:'4px 6px', background: k==='H'?'#16a34a':k==='S'?'#f59e0b':k==='I'?'#3b82f6':k==='A'?'#dc2626':'#f97316', color:'#fff', border:'1px solid #475569', fontSize:10, minWidth:28 }}>{k}</th>
+                      ))}
+                      {matriksData.tanggal.map(t => {
+                        const d = new Date(t);
+                        const hari = ['Min','Sen','Sel','Rab','Kam','Jum','Sab'][d.getDay()];
+                        const tgl  = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+                        const isMinggu = d.getDay() === 0;
+                        return (
+                          <th key={t} style={{ padding:'2px 1px', background: isMinggu ? '#334155' : '#1e293b', color: isMinggu ? '#94a3b8' : '#fff', border:'1px solid #475569', fontSize:8, minWidth:28, maxWidth:28, textAlign:'center' }}>
+                            <div style={{ writingMode:'vertical-lr', transform:'rotate(180deg)', lineHeight:1.3, fontSize:8 }}>
+                              {hari}<br/>{tgl}
+                            </div>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {matriksData.siswa.map((item, idx) => {
+                      const map = {};
+                      (item.absensi || []).forEach(a => {
+                        const tgl = (a.tanggal?.split?.('T')[0] || a.tanggal);
+                        map[tgl] = a.status;
+                      });
+                      const counts = { H:0, S:0, I:0, A:0, T:0 };
+                      Object.values(map).forEach(st => {
+                        if (st==='HADIR') counts.H++;
+                        else if (st==='SAKIT') counts.S++;
+                        else if (st==='IZIN') counts.I++;
+                        else if (st==='ALPHA') counts.A++;
+                        else if (st==='TERLAMBAT') counts.T++;
+                      });
+                      const STATUS_STYLE = {
+                        HADIR:      { bg:'#dcfce7', color:'#16a34a', lbl:'H' },
+                        SAKIT:      { bg:'#fef9c3', color:'#f59e0b', lbl:'S' },
+                        IZIN:       { bg:'#dbeafe', color:'#3b82f6', lbl:'I' },
+                        ALPHA:      { bg:'#fee2e2', color:'#dc2626', lbl:'A' },
+                        DISPENSASI: { bg:'#ede9fe', color:'#8b5cf6', lbl:'D' },
+                        TERLAMBAT:  { bg:'#ffedd5', color:'#f97316', lbl:'T' },
+                        PULANG_CEPAT:{ bg:'#fce7f3', color:'#ec4899', lbl:'PC' },
+                        DINAS:      { bg:'#cffafe', color:'#0891b2', lbl:'DN' },
+                        LAINNYA:    { bg:'#f1f5f9', color:'#64748b', lbl:'L' },
+                      };
+                      const stripe = idx%2===1 ? 'var(--color-surface-hover)' : 'transparent';
+                      return (
+                        <tr key={item.siswa?.id}>
+                          <td style={{ padding:'3px 5px', border:'1px solid var(--color-border)', textAlign:'center', fontSize:10, background:stripe, position:'sticky', left:0, zIndex:1 }}>{idx+1}</td>
+                          <td style={{ padding:'3px 8px', border:'1px solid var(--color-border)', fontWeight:600, fontSize:11, background:stripe, position:'sticky', left:28, zIndex:1, minWidth:160 }}>{item.siswa?.nama}</td>
+                          {['H','S','I','A','T'].map(k => (
+                            <td key={k} style={{ padding:'3px 4px', border:'1px solid var(--color-border)', textAlign:'center', fontSize:10, fontWeight:700, background:stripe,
+                              color: k==='H'?'#16a34a':k==='S'?'#f59e0b':k==='I'?'#3b82f6':k==='A'?'#dc2626':'#f97316' }}>
+                              {counts[k] || ''}
+                            </td>
+                          ))}
+                          {matriksData.tanggal.map(t => {
+                            const st = map[t];
+                            const ss = st ? STATUS_STYLE[st] : null;
+                            return (
+                              <td key={t} title={st || ''} style={{ padding:'2px 1px', border:'1px solid var(--color-border)', textAlign:'center', fontSize:9, fontWeight:700, minWidth:28, maxWidth:28,
+                                background: ss ? ss.bg : stripe, color: ss ? ss.color : 'var(--color-border)' }}>
+                                {ss ? ss.lbl : '·'}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
-      </div>
+      ) : (
+        <div className="card" style={{ padding:0, overflow:'hidden', marginBottom:24 }}>
+          <div style={{ overflowX:'auto' }}>
+            <DataTable
+              columns={currentCols}
+              data={displayData}
+              loading={isLoading}
+              emptyMessage="Tidak ada data untuk filter yang dipilih"
+              tableStyle={reportType === 'absensi-kelas' ? { tableLayout:'fixed', width:'100%' } : undefined}
+            />
+          </div>
+        </div>
+      )}
 
     </div>
   );
