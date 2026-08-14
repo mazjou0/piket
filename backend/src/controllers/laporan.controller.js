@@ -491,7 +491,7 @@ const getRekapAbsensiDetail = asyncHandler(async (req, res) => {
   });
 
   // Ambil daftar siswa aktif di kelas ini
-  const kelasData = await prisma.kelasSiswa.findMany({
+  const kelasData = await prisma.siswaKelas.findMany({
     where: { kelasId, aktif: true },
     orderBy: { siswa: { nama: 'asc' } },
     select: { siswa: { select: { id: true, nama: true, nis: true, nisn: true } } },
