@@ -694,8 +694,8 @@ export default function LaporanPage() {
 
       const stripe = idx%2===1 ? '#f8fafc' : '#fff';
       return `<tr>
-        <td style="padding:1px 2px;border:0.5px solid #e2e8f0;text-align:center;background:${stripe};font-size:7px">${idx+1}</td>
-        <td style="padding:1px 4px;border:0.5px solid #e2e8f0;background:${stripe};font-size:7.5px;font-weight:600;white-space:nowrap">${item.siswa?.nama||'-'}</td>
+        <td style="width:20px;padding:1px 2px;border:0.5px solid #e2e8f0;text-align:center;background:${stripe};font-size:7px">${idx+1}</td>
+        <td style="width:150px;padding:1px 4px;border:0.5px solid #e2e8f0;background:${stripe};font-size:7.5px;font-weight:600;white-space:nowrap;overflow:hidden">${item.siswa?.nama||'-'}</td>
         ${tdRekap(sH,'#16a34a','',stripe)}
         ${tdRekap(sS,'#b45309','#fef9c3',stripe)}
         ${tdRekap(sI,'#1d4ed8','#dbeafe',stripe)}
@@ -724,8 +724,8 @@ export default function LaporanPage() {
     </tr>`;
 
     const mainHeader = `<tr>
-      <th style="width:22px;background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px;text-align:center" rowspan="2">No</th>
-      <th style="background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 4px;text-align:left" rowspan="2">Nama Siswa</th>
+      <th style="width:20px;background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px;text-align:center" rowspan="2">No</th>
+      <th style="width:150px;background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 4px;text-align:left" rowspan="2">Nama Siswa</th>
       <th style="width:14px;background:#16a34a;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">H</th>
       <th style="width:14px;background:#fbbf24;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">S</th>
       <th style="width:14px;background:#3b82f6;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">I</th>
@@ -754,7 +754,8 @@ export default function LaporanPage() {
       .kop-sub{ font-size:7.5px; color:#555; margin-top:1px; }
       .judul{ font-size:10px; font-weight:700; text-align:center; margin:4px 0 1px; text-transform:uppercase; }
       .period{ font-size:7.5px; text-align:center; color:#555; margin-bottom:5px; }
-      table{ border-collapse:collapse; width:100%; table-layout:fixed; }
+      table{ border-collapse:collapse; width:100%; }
+      td, th { overflow:hidden; }
       .legend{ font-size:7px; color:#555; margin-top:4px; }
       .ttd{ display:flex; justify-content:flex-end; margin-top:10px; }
       .ttd-box{ text-align:center; min-width:150px; line-height:1.8; font-size:8px; }
