@@ -1390,7 +1390,6 @@ export default function LaporanPage() {
                 else if(k.status==='TERLAMBAT') totals.T++;
               });
             });
-            const namaBulan = new Date(tanggalSelesai).toLocaleString('id-ID', { month:'short' });
             const thStyle = (bg) => ({ padding:'4px 5px', background:bg, color:'#fff', border:'1px solid #475569', fontSize:11, textAlign:'center', minWidth:26 });
             const sepStyle = { width:6, background:'#94a3b8', border:'none', padding:0 };
             const fmtTgl  = s => { const d=new Date(s); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`; };
