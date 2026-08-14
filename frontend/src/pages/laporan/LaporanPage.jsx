@@ -603,7 +603,7 @@ export default function LaporanPage() {
     const schoolName  = sekolahInfo?.nama    || 'SMKN 1 Kras';
     const schoolAddr  = sekolahInfo?.alamat  || 'Jl. Raya Kras, Kediri, Jawa Timur';
     const schoolPhone = sekolahInfo?.telepon || '';
-    const psSize      = pageSize === 'F4' ? '330.2mm 215.9mm' : '297mm 210mm'; // landscape
+    const psSize      = pageSize === 'F4' ? '215.9mm 330.2mm' : '210mm 297mm'; // portrait
     const today       = new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
     const signerName  = user?.nama || user?.username || '';
     const signerNip   = user?.nip  || '';
@@ -639,10 +639,10 @@ export default function LaporanPage() {
       return hari[new Date(s).getDay()];
     };
 
-    // Header kolom tanggal
+    // Header kolom tanggal — portrait: lebih sempit
     const thTanggal = tanggalList.map(t =>
-      `<th style="min-width:26px;max-width:26px;padding:2px 1px;font-size:7px;background:#1e293b;color:#fff;border:0.5px solid #475569">
-        <div style="writing-mode:vertical-lr;transform:rotate(180deg);white-space:nowrap">${fmtHari(t)}<br/>${fmtTgl(t)}</div>
+      `<th style="width:14px;min-width:14px;max-width:14px;padding:1px 0;font-size:6px;background:#1e293b;color:#fff;border:0.5px solid #475569;text-align:center">
+        <div style="writing-mode:vertical-lr;transform:rotate(180deg);white-space:nowrap;font-size:6px">${fmtHari(t)}<br/>${fmtTgl(t)}</div>
       </th>`
     ).join('');
 
@@ -666,20 +666,20 @@ export default function LaporanPage() {
       const cells = tanggalList.map(t => {
         const st = map[t];
         if (!st || st === 'HADIR') {
-          return `<td style="min-width:26px;max-width:26px;padding:1px;text-align:center;border:0.5px solid #e2e8f0;font-size:7px;background:${st==='HADIR'?'#dcfce7':'#fff'};color:${st==='HADIR'?'#16a34a':'#ccc'}">${st?'H':'-'}</td>`;
+          return `<td style="width:14px;min-width:14px;max-width:14px;padding:1px 0;text-align:center;border:0.5px solid #e2e8f0;font-size:6px;background:${st==='HADIR'?'#dcfce7':'#fff'};color:${st==='HADIR'?'#16a34a':'#ccc'}">${st?'H':''}</td>`;
         }
-        return `<td style="min-width:26px;max-width:26px;padding:1px;text-align:center;border:0.5px solid #e2e8f0;font-size:7px;background:${STATUS_BG[st]||'#fff'};color:${STATUS_COLOR[st]||'#111'};font-weight:700">${STATUS_LABEL[st]||'-'}</td>`;
+        return `<td style="width:14px;min-width:14px;max-width:14px;padding:1px 0;text-align:center;border:0.5px solid #e2e8f0;font-size:6px;background:${STATUS_BG[st]||'#fff'};color:${STATUS_COLOR[st]||'#111'};font-weight:700">${STATUS_LABEL[st]||'-'}</td>`;
       }).join('');
 
       const stripe = idx%2===1 ? 'background:#f8fafc' : '';
       return `<tr style="${stripe}">
-        <td style="text-align:center;border:0.5px solid #e2e8f0;font-size:8px;padding:2px 3px">${idx+1}</td>
-        <td style="border:0.5px solid #e2e8f0;font-size:8px;padding:2px 4px;white-space:nowrap;font-weight:600">${item.siswa?.nama||'-'}</td>
-        <td style="text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:2px 3px;color:#16a34a;font-weight:700">${counts.H}</td>
-        <td style="text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:2px 3px;color:#f59e0b;font-weight:700">${counts.S}</td>
-        <td style="text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:2px 3px;color:#3b82f6;font-weight:700">${counts.I}</td>
-        <td style="text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:2px 3px;color:#dc2626;font-weight:700">${counts.A}</td>
-        <td style="text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:2px 3px;color:#f97316;font-weight:700">${counts.T}</td>
+        <td style="width:20px;text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:1px 2px">${idx+1}</td>
+        <td style="border:0.5px solid #e2e8f0;font-size:7px;padding:1px 3px;white-space:nowrap;font-weight:600">${item.siswa?.nama||'-'}</td>
+        <td style="width:18px;text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:1px 2px;color:#16a34a;font-weight:700">${counts.H||''}</td>
+        <td style="width:18px;text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:1px 2px;color:#f59e0b;font-weight:700">${counts.S||''}</td>
+        <td style="width:18px;text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:1px 2px;color:#3b82f6;font-weight:700">${counts.I||''}</td>
+        <td style="width:18px;text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:1px 2px;color:#dc2626;font-weight:700">${counts.A||''}</td>
+        <td style="width:18px;text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:1px 2px;color:#f97316;font-weight:700">${counts.T||''}</td>
         ${cells}
       </tr>`;
     }).join('');
@@ -690,16 +690,16 @@ export default function LaporanPage() {
     <style>
       @page { size: ${psSize}; margin: 10mm 8mm 12mm; }
       * { box-sizing:border-box; margin:0; padding:0; }
-      body { font-family:Arial,sans-serif; font-size:9px; color:#111; }
-      .kop { text-align:center; border-bottom:2.5px solid #1e293b; padding-bottom:6px; margin-bottom:6px; }
-      .kop-nama { font-size:13px; font-weight:800; }
-      .kop-sub  { font-size:8px; color:#555; margin-top:2px; }
-      .judul    { font-size:11px; font-weight:700; text-align:center; margin:5px 0 2px; text-transform:uppercase; }
-      .period   { font-size:8px; text-align:center; color:#555; margin-bottom:6px; }
-      table { border-collapse:collapse; font-size:8px; }
-      .legend { font-size:8px; color:#555; margin-top:6px; }
-      .ttd  { display:flex; justify-content:flex-end; margin-top:14px; }
-      .ttd-box { text-align:center; min-width:170px; line-height:1.8; font-size:9px; }
+      body { font-family:Arial,sans-serif; font-size:8px; color:#111; }
+      .kop { text-align:center; border-bottom:2.5px solid #1e293b; padding-bottom:5px; margin-bottom:5px; }
+      .kop-nama { font-size:12px; font-weight:800; }
+      .kop-sub  { font-size:7.5px; color:#555; margin-top:2px; }
+      .judul    { font-size:10px; font-weight:700; text-align:center; margin:4px 0 2px; text-transform:uppercase; }
+      .period   { font-size:7.5px; text-align:center; color:#555; margin-bottom:5px; }
+      table { border-collapse:collapse; width:100%; }
+      .legend { font-size:7px; color:#555; margin-top:5px; }
+      .ttd  { display:flex; justify-content:flex-end; margin-top:12px; }
+      .ttd-box { text-align:center; min-width:160px; line-height:1.8; font-size:8px; }
       .ttd-name { font-weight:700; }
       @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
     </style></head><body>
@@ -710,16 +710,16 @@ export default function LaporanPage() {
     <div class="judul">Rekap Presensi TA. ${new Date(tanggalMulai).getFullYear()}–${new Date(tanggalSelesai).getFullYear()}</div>
     <div class="period">Kelas: ${namaKelas} &nbsp;|&nbsp; Periode: ${period}</div>
 
-    <table style="width:100%">
+    <table>
       <thead>
         <tr>
-          <th style="width:24px;background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 2px">No</th>
-          <th style="background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 4px;text-align:left">Nama Siswa</th>
-          <th style="width:22px;background:#16a34a;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 2px">H</th>
-          <th style="width:22px;background:#f59e0b;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 2px">S</th>
-          <th style="width:22px;background:#3b82f6;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 2px">I</th>
-          <th style="width:22px;background:#dc2626;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 2px">A</th>
-          <th style="width:22px;background:#f97316;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 2px">T</th>
+          <th style="width:20px;background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">No</th>
+          <th style="background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 4px;text-align:left">Nama Siswa</th>
+          <th style="width:18px;background:#16a34a;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">H</th>
+          <th style="width:18px;background:#f59e0b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">S</th>
+          <th style="width:18px;background:#3b82f6;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">I</th>
+          <th style="width:18px;background:#dc2626;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">A</th>
+          <th style="width:18px;background:#f97316;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">T</th>
           ${thTanggal}
         </tr>
       </thead>
