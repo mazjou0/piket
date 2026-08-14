@@ -78,6 +78,9 @@ export default function LaporanPage() {
     queryFn: () => api.get('/laporan/rekap-tidak-hadir', { params }).then(r => r.data.data),
     enabled: reportType === 'tidak-hadir' && !!tanggalMulai && !!tanggalSelesai,
   });
+  // Ekstrak siswa dan tanggal dari response
+  const tidakHadirSiswa   = tidakHadirData?.siswa   || [];
+  const tidakHadirTanggal = tidakHadirData?.tanggal || [];
 
   const currentData = reportType === 'absensi-siswa' ? rekapAbsensi
                     : reportType === 'absensi-kelas' ? rekapKelas
@@ -802,11 +805,11 @@ export default function LaporanPage() {
 
   // ── Print Rekap Tidak Hadir ──────────────────────────────
   const handlePrintTidakHadir = () => {
-    if (!tidakHadirData?.length) { toast.error('Tidak ada data tidak hadir'); return; }
+    if (!tidakHadirSiswa?.length) { toast.error('Tidak ada data tidak hadir'); return; }
     const schoolName = sekolahInfo?.nama    || 'SMKN 1 Kras';
     const schoolAddr = sekolahInfo?.alamat  || 'Jl. Raya Kras, Kediri, Jawa Timur';
     const schoolPhone= sekolahInfo?.telepon || '';
-    const psSize     = pageSize === 'F4' ? '215.9mm 330.2mm' : '210mm 297mm';
+    const psSize     = pageSize === 'F4' ? '330.2mm 215.9mm' : '297mm 210mm'; // landscape
     const today      = new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
     const signerName = user?.nama || user?.username || '';
     const signerNip  = user?.nip  || '';
@@ -823,22 +826,40 @@ export default function LaporanPage() {
       SAKIT:'#fef9c3', IZIN:'#dbeafe', ALPHA:'#fee2e2', DISPENSASI:'#ede9fe', TERLAMBAT:'#ffedd5'
     };
 
+    const fmtTgl  = s => { const d=new Date(s); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`; };
+    const fmtHari = s => ['Min','Sen','Sel','Rab','Kam','Jum','Sab'][new Date(s).getDay()];
+
+    // Header kolom tanggal
+    const thTgl = tidakHadirTanggal.map(t => {
+      const isMinggu = new Date(t).getDay() === 0;
+      return `<th style="width:14px;min-width:14px;padding:0;background:${isMinggu?'#334155':'#1e293b'};color:${isMinggu?'#94a3b8':'#fff'};border:0.5px solid #475569;text-align:center">
+        <div style="writing-mode:vertical-lr;transform:rotate(180deg);padding:2px 0;line-height:1.1;font-size:6px">${fmtHari(t)}<br/>${fmtTgl(t)}</div>
+      </th>`;
+    }).join('');
+
     const tdN = (val, color, bg, stripe) =>
       `<td style="width:18px;text-align:center;border:0.5px solid #cbd5e1;background:${val?(bg||stripe):stripe};font-size:7px;color:${color};font-weight:700;padding:1px 0">${val||''}</td>`;
 
-    const tbody = tidakHadirData.map((row, i) => {
+    const tbody = tidakHadirSiswa.map((row, i) => {
+      const map = {};
+      (row.kejadian||[]).forEach(k => { map[k.tanggal] = k; });
       const sm = row.rekap || {};
       const bl = row.rekapBulan || {};
       const smJml = (sm.S||0)+(sm.I||0)+(sm.A||0)+(sm.D||0);
       const blJml = (bl.S||0)+(bl.I||0)+(bl.A||0)+(bl.D||0);
       const stripe = i%2===1 ? '#f8fafc' : '#fff';
-      const kejStr = (row.kejadian||[]).map(k =>
-        `${new Date(k.tanggal).toLocaleDateString('id-ID',{day:'2-digit',month:'short'})}[${ST[k.status]||k.status}]`
-      ).join(' ');
+      const cells = tidakHadirTanggal.map(t => {
+        const k = map[t];
+        if (!k) return `<td style="width:14px;min-width:14px;padding:0;border:0.5px solid #e2e8f0;background:${stripe}"></td>`;
+        const bg = ST_BG[k.status]||'#fff';
+        const color = ST_COLOR[k.status]||'#111';
+        const lbl = ST[k.status]||k.status;
+        return `<td style="width:14px;min-width:14px;padding:0;border:0.5px solid #e2e8f0;background:${bg};text-align:center;font-size:6px;color:${color};font-weight:700">${lbl}</td>`;
+      }).join('');
       return `<tr>
-        <td style="padding:1px 3px;border:0.5px solid #e2e8f0;text-align:center;background:${stripe};font-size:7px">${i+1}</td>
-        <td style="padding:1px 5px;border:0.5px solid #e2e8f0;background:${stripe};font-size:7.5px;font-weight:600;white-space:nowrap">${row.siswa?.nama||'-'}</td>
-        <td style="padding:1px 4px;border:0.5px solid #e2e8f0;background:${stripe};font-size:7px">${row.kelas?.nama||'-'}</td>
+        <td style="width:20px;padding:1px 2px;border:0.5px solid #e2e8f0;text-align:center;background:${stripe};font-size:7px">${i+1}</td>
+        <td style="width:150px;padding:1px 5px;border:0.5px solid #e2e8f0;background:${stripe};font-size:7.5px;font-weight:600;white-space:nowrap">${row.siswa?.nama||'-'}</td>
+        <td style="width:70px;padding:1px 4px;border:0.5px solid #e2e8f0;background:${stripe};font-size:7px">${row.kelas?.nama||'-'}</td>
         ${tdN(sm.H,'#16a34a','',stripe)}
         ${tdN(sm.S,'#b45309','#fef9c3',stripe)}
         ${tdN(sm.I,'#1d4ed8','#dbeafe',stripe)}
@@ -852,7 +873,7 @@ export default function LaporanPage() {
         ${tdN(bl.D,'#7c3aed','#ede9fe',stripe)}
         ${tdN(blJml,'#1e293b','#e2e8f0',stripe)}
         <td style="width:4px;background:#94a3b8;border:none;padding:0"></td>
-        <td style="padding:1px 4px;border:0.5px solid #e2e8f0;background:${stripe};font-size:7px;color:#555">${kejStr||'-'}</td>
+        ${cells}
       </tr>`;
     }).join('');
 
@@ -888,32 +909,32 @@ export default function LaporanPage() {
           <th style="width:4px;background:#94a3b8;border:none;padding:0"></th>
           <th colspan="5" style="background:#1e40af;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px;text-align:center">Bulan ${namaBulan}</th>
           <th style="width:4px;background:#94a3b8;border:none;padding:0"></th>
-          <th style="background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 4px;text-align:center">Kejadian</th>
+          <th colspan="${tidakHadirTanggal.length}" style="background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px;text-align:center">Data Harian</th>
         </tr>
         <tr>
           <th style="width:20px;background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px;text-align:center">No</th>
           <th style="width:150px;background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 4px;text-align:left">Nama Siswa</th>
           <th style="width:70px;background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 4px">Kelas</th>
-          <th style="width:18px;background:#16a34a;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">H</th>
-          <th style="width:18px;background:#f59e0b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">S</th>
-          <th style="width:18px;background:#3b82f6;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">I</th>
-          <th style="width:18px;background:#dc2626;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">A</th>
-          <th style="width:18px;background:#8b5cf6;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">D</th>
-          <th style="width:18px;background:#334155;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">Jml</th>
+          <th style="width:14px;background:#16a34a;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">H</th>
+          <th style="width:14px;background:#f59e0b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">S</th>
+          <th style="width:14px;background:#3b82f6;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">I</th>
+          <th style="width:14px;background:#dc2626;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">A</th>
+          <th style="width:14px;background:#8b5cf6;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">D</th>
+          <th style="width:14px;background:#334155;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">Jml</th>
           <th style="width:4px;background:#94a3b8;border:none;padding:0"></th>
-          <th style="width:18px;background:#f59e0b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">S</th>
-          <th style="width:18px;background:#3b82f6;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">I</th>
-          <th style="width:18px;background:#dc2626;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">A</th>
-          <th style="width:18px;background:#8b5cf6;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">D</th>
-          <th style="width:18px;background:#334155;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">Jml</th>
+          <th style="width:14px;background:#f59e0b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">S</th>
+          <th style="width:14px;background:#3b82f6;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">I</th>
+          <th style="width:14px;background:#dc2626;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">A</th>
+          <th style="width:14px;background:#8b5cf6;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">D</th>
+          <th style="width:14px;background:#334155;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">Jml</th>
           <th style="width:4px;background:#94a3b8;border:none;padding:0"></th>
-          <th style="background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 4px;text-align:left">Tanggal [Ket]</th>
+          ${thTgl}
         </tr>
       </thead>
       <tbody>${tbody}</tbody>
     </table>
     <p class="legend">Ket: H=Hadir · S=Sakit · I=Izin · A=Alpha · D=Dispensasi · T=Terlambat · Jml=Total tidak hadir</p>
-    <p class="legend">Dicetak: ${new Date().toLocaleString('id-ID')} | Total: ${tidakHadirData.length} siswa</p>
+    <p class="legend">Dicetak: ${new Date().toLocaleString('id-ID')} | Total: ${tidakHadirSiswa.length} siswa</p>
     <div class="ttd"><div class="ttd-box">
       Kras, ${today}<br/>Petugas Piket,<br/><br/><br/>
       <div class="ttd-name">${signerName||'___________________________'}</div>
@@ -1339,7 +1360,7 @@ export default function LaporanPage() {
                 <div key={i} style={{ height:36, borderRadius:8, background:'var(--color-surface-hover)', animation:'pulse 1.5s ease-in-out infinite' }} />
               ))}
             </div>
-          ) : !tidakHadirData?.length ? (
+          ) : !tidakHadirSiswa?.length ? (
             <div style={{ textAlign:'center', padding:'40px 0', color:'var(--color-muted)' }}>
               <p style={{ fontSize:14 }}>
                 {tanggalMulai && tanggalSelesai
@@ -1360,7 +1381,7 @@ export default function LaporanPage() {
             };
             // Summary total
             const totals = { S:0, I:0, A:0, D:0, T:0 };
-            tidakHadirData.forEach(r => {
+            tidakHadirSiswa.forEach(r => {
               r.kejadian?.forEach(k => {
                 if(k.status==='SAKIT') totals.S++;
                 else if(k.status==='IZIN') totals.I++;
@@ -1369,47 +1390,41 @@ export default function LaporanPage() {
                 else if(k.status==='TERLAMBAT') totals.T++;
               });
             });
-            const thStyle = (bg) => ({ padding:'4px 5px', background:bg, color:'#fff', border:'1px solid #475569', fontSize:11, textAlign:'center', minWidth:28 });
+            const namaBulan = new Date(tanggalSelesai).toLocaleString('id-ID', { month:'short' });
+            const thStyle = (bg) => ({ padding:'4px 5px', background:bg, color:'#fff', border:'1px solid #475569', fontSize:11, textAlign:'center', minWidth:26 });
             const sepStyle = { width:6, background:'#94a3b8', border:'none', padding:0 };
+            const fmtTgl  = s => { const d=new Date(s); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`; };
+            const fmtHari = s => ['Min','Sen','Sel','Rab','Kam','Jum','Sab'][new Date(s).getDay()];
             return (
               <>
                 {/* Summary */}
-                <div style={{ display:'flex', gap:8, marginBottom:10, flexWrap:'wrap', alignItems:'center' }}>
+                <div style={{ display:'flex', gap:8, marginBottom:8, flexWrap:'wrap', alignItems:'center' }}>
                   <span style={{ fontSize:12, fontWeight:600, color:'var(--color-foreground)' }}>
-                    {tidakHadirData.length} siswa tidak hadir
+                    {tidakHadirSiswa.length} siswa · {tidakHadirTanggal.length} hari
                   </span>
-                  {[
-                    { k:'S', color:'#b45309', bg:'#fef9c3' },
-                    { k:'I', color:'#1d4ed8', bg:'#dbeafe' },
-                    { k:'A', color:'#dc2626', bg:'#fee2e2' },
-                    { k:'D', color:'#7c3aed', bg:'#ede9fe' },
-                    { k:'T', color:'#c2410c', bg:'#ffedd5' },
-                  ].map(s => totals[s.k] ? (
-                    <span key={s.k} style={{ padding:'2px 10px', borderRadius:6, fontSize:11, fontWeight:700, background:s.bg, color:s.color, border:`1px solid ${s.color}30` }}>
-                      {s.k} = {totals[s.k]}
-                    </span>
-                  ) : null)}
+                  {[{k:'S',color:'#b45309',bg:'#fef9c3'},{k:'I',color:'#1d4ed8',bg:'#dbeafe'},{k:'A',color:'#dc2626',bg:'#fee2e2'},{k:'D',color:'#7c3aed',bg:'#ede9fe'},{k:'T',color:'#c2410c',bg:'#ffedd5'}]
+                    .map(s => totals[s.k] ? (
+                      <span key={s.k} style={{ padding:'2px 10px', borderRadius:6, fontSize:11, fontWeight:700, background:s.bg, color:s.color, border:`1px solid ${s.color}30` }}>
+                        {s.k} = {totals[s.k]}
+                      </span>
+                    ) : null)}
                 </div>
 
-                {/* Tabel dengan rekap semester + bulan */}
                 <div style={{ overflowX:'auto' }}>
                   <table style={{ borderCollapse:'collapse', fontSize:11, whiteSpace:'nowrap' }}>
                     <thead>
-                      {/* Sub-header grup */}
                       <tr>
-                        <th colSpan={3} style={{ background:'#0f172a', color:'#fff', border:'1px solid #475569', fontSize:10, padding:'2px 6px', textAlign:'center' }}>Data Siswa</th>
+                        <th colSpan={3} style={{ background:'#0f172a', color:'#fff', border:'1px solid #475569', fontSize:10, padding:'2px 6px', textAlign:'center', position:'sticky', left:0, zIndex:3 }}>Data Siswa</th>
                         <th colSpan={6} style={{ background:'#166534', color:'#fff', border:'1px solid #475569', fontSize:10, padding:'2px', textAlign:'center' }}>Rekap Semester</th>
                         <th style={sepStyle}></th>
-                        <th colSpan={6} style={{ background:'#1e40af', color:'#fff', border:'1px solid #475569', fontSize:10, padding:'2px', textAlign:'center' }}>Bulan {namaBulan}</th>
+                        <th colSpan={5} style={{ background:'#1e40af', color:'#fff', border:'1px solid #475569', fontSize:10, padding:'2px', textAlign:'center' }}>Bulan {namaBulan}</th>
                         <th style={sepStyle}></th>
-                        <th style={{ background:'#1e293b', color:'#fff', border:'1px solid #475569', fontSize:10, padding:'2px 4px', textAlign:'center' }}>Kejadian</th>
+                        <th colSpan={tidakHadirTanggal.length} style={{ background:'#1e293b', color:'#fff', border:'1px solid #475569', fontSize:10, padding:'2px', textAlign:'center' }}>Data Harian</th>
                       </tr>
-                      {/* Header kolom */}
                       <tr>
-                        <th style={thStyle('#1e293b')}>No</th>
-                        <th style={{ ...thStyle('#1e293b'), textAlign:'left', padding:'4px 8px', minWidth:180 }}>Nama Siswa</th>
+                        <th style={{ ...thStyle('#1e293b'), position:'sticky', left:0, zIndex:2, width:28 }}>No</th>
+                        <th style={{ ...thStyle('#1e293b'), position:'sticky', left:28, zIndex:2, minWidth:160, textAlign:'left', padding:'4px 8px' }}>Nama Siswa</th>
                         <th style={{ ...thStyle('#1e293b'), minWidth:80 }}>Kelas</th>
-                        {/* Rekap semester */}
                         <th style={thStyle('#16a34a')}>H</th>
                         <th style={thStyle('#f59e0b')}>S</th>
                         <th style={thStyle('#3b82f6')}>I</th>
@@ -1417,55 +1432,62 @@ export default function LaporanPage() {
                         <th style={thStyle('#8b5cf6')}>D</th>
                         <th style={thStyle('#334155')}>Jml</th>
                         <th style={sepStyle}></th>
-                        {/* Rekap bulan */}
                         <th style={thStyle('#f59e0b')}>S</th>
                         <th style={thStyle('#3b82f6')}>I</th>
                         <th style={thStyle('#dc2626')}>A</th>
                         <th style={thStyle('#8b5cf6')}>D</th>
                         <th style={thStyle('#334155')}>Jml</th>
                         <th style={sepStyle}></th>
-                        {/* Kejadian detail */}
-                        <th style={{ ...thStyle('#1e293b'), textAlign:'left', minWidth:200 }}>Tanggal — Status — Keterangan</th>
+                        {tidakHadirTanggal.map(t => (
+                          <th key={t} style={{ padding:'2px 0', background: new Date(t).getDay()===0?'#334155':'#1e293b', color: new Date(t).getDay()===0?'#94a3b8':'#fff', border:'1px solid #475569', fontSize:8, minWidth:26, maxWidth:26, textAlign:'center' }}>
+                            <div style={{ writingMode:'vertical-lr', transform:'rotate(180deg)', lineHeight:1.3 }}>{fmtHari(t)}<br/>{fmtTgl(t)}</div>
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {tidakHadirData.map((row, idx) => {
-                        const { rekap: sm, rekapBulan: bl } = row;
-                        const smJml = (sm?.S||0)+(sm?.I||0)+(sm?.A||0)+(sm?.D||0);
-                        const blJml = (bl?.S||0)+(bl?.I||0)+(bl?.A||0)+(bl?.D||0);
+                      {tidakHadirSiswa.map((row, idx) => {
+                        const map = {};
+                        (row.kejadian||[]).forEach(k => { map[k.tanggal] = k; });
+                        const sm = row.rekap || {};
+                        const bl = row.rekapBulan || {};
+                        const smJml = (sm.S||0)+(sm.I||0)+(sm.A||0)+(sm.D||0);
+                        const blJml = (bl.S||0)+(bl.I||0)+(bl.A||0)+(bl.D||0);
                         const stripe = idx%2===1 ? 'var(--color-surface-hover)' : 'transparent';
                         const tdN = (val, color, bg) => (
-                          <td style={{ padding:'4px 5px', border:'1px solid var(--color-border)', textAlign:'center', fontSize:11, fontWeight:700,
-                            background: val?(bg||stripe):stripe, color, minWidth:28 }}>
+                          <td style={{ padding:'3px 4px', border:'1px solid var(--color-border)', textAlign:'center', fontSize:10, fontWeight:700, background:val?(bg||stripe):stripe, color, minWidth:26 }}>
                             {val||''}
                           </td>
                         );
-                        // Kejadian detail
-                        const kejadianStr = (row.kejadian||[]).map(k => {
-                          const s = ST[k.status];
-                          return `${new Date(k.tanggal).toLocaleDateString('id-ID',{day:'2-digit',month:'short'})} [${s?.lbl||k.status}]${k.keterangan?` ${k.keterangan}`:''}`;
-                        }).join('  ·  ');
                         return (
                           <tr key={idx}>
-                            <td style={{ padding:'4px 5px', border:'1px solid var(--color-border)', textAlign:'center', background:stripe, color:'var(--color-muted)', fontSize:11 }}>{idx+1}</td>
-                            <td style={{ padding:'4px 8px', border:'1px solid var(--color-border)', background:stripe, fontWeight:600, fontSize:12 }}>{row.siswa?.nama||'-'}</td>
-                            <td style={{ padding:'4px 6px', border:'1px solid var(--color-border)', background:stripe, fontSize:11 }}>{row.kelas?.nama||'-'}</td>
-                            {tdN(sm?.H,'#16a34a','')}
-                            {tdN(sm?.S,'#b45309','#fef9c3')}
-                            {tdN(sm?.I,'#1d4ed8','#dbeafe')}
-                            {tdN(sm?.A,'#dc2626','#fee2e2')}
-                            {tdN(sm?.D,'#7c3aed','#ede9fe')}
+                            <td style={{ padding:'3px 5px', border:'1px solid var(--color-border)', textAlign:'center', fontSize:10, background:stripe, position:'sticky', left:0, zIndex:1 }}>{idx+1}</td>
+                            <td style={{ padding:'3px 8px', border:'1px solid var(--color-border)', fontWeight:600, fontSize:11, background:stripe, position:'sticky', left:28, zIndex:1, minWidth:160 }}>{row.siswa?.nama}</td>
+                            <td style={{ padding:'3px 6px', border:'1px solid var(--color-border)', fontSize:11, background:stripe }}>{row.kelas?.nama}</td>
+                            {tdN(sm.H,'#16a34a','')}
+                            {tdN(sm.S,'#b45309','#fef9c3')}
+                            {tdN(sm.I,'#1d4ed8','#dbeafe')}
+                            {tdN(sm.A,'#dc2626','#fee2e2')}
+                            {tdN(sm.D,'#7c3aed','#ede9fe')}
                             {tdN(smJml,'#1e293b','#e2e8f0')}
                             <td style={{ width:6, background:'#94a3b8', border:'none' }}></td>
-                            {tdN(bl?.S,'#b45309','#fef9c3')}
-                            {tdN(bl?.I,'#1d4ed8','#dbeafe')}
-                            {tdN(bl?.A,'#dc2626','#fee2e2')}
-                            {tdN(bl?.D,'#7c3aed','#ede9fe')}
+                            {tdN(bl.S,'#b45309','#fef9c3')}
+                            {tdN(bl.I,'#1d4ed8','#dbeafe')}
+                            {tdN(bl.A,'#dc2626','#fee2e2')}
+                            {tdN(bl.D,'#7c3aed','#ede9fe')}
                             {tdN(blJml,'#1e293b','#e2e8f0')}
                             <td style={{ width:6, background:'#94a3b8', border:'none' }}></td>
-                            <td style={{ padding:'4px 8px', border:'1px solid var(--color-border)', background:stripe, fontSize:10, color:'var(--color-muted)', maxWidth:280, overflow:'hidden', textOverflow:'ellipsis' }}>
-                              {kejadianStr||'-'}
-                            </td>
+                            {tidakHadirTanggal.map(t => {
+                              const k = map[t];
+                              const s = k ? ST[k.status] : null;
+                              return (
+                                <td key={t} title={k?`${k.status}${k.keterangan?' - '+k.keterangan:''}`:''}
+                                  style={{ padding:'2px 1px', border:'1px solid var(--color-border)', textAlign:'center', fontSize:9, fontWeight:700, minWidth:26, maxWidth:26,
+                                    background: s ? s.bg : stripe, color: s ? s.color : 'transparent' }}>
+                                  {s ? s.lbl : ''}
+                                </td>
+                              );
+                            })}
                           </tr>
                         );
                       })}

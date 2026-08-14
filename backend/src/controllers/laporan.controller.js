@@ -564,6 +564,11 @@ const getRekapTidakHadir = asyncHandler(async (req, res) => {
     });
   });
 
+  // Kumpulkan semua tanggal unik yang ada tidak hadir
+  const tanggalSet = new Set();
+  rows.forEach(r => tanggalSet.add(r.tanggal.toISOString().split('T')[0]));
+  const tanggalList = [...tanggalSet].sort();
+
   // Hitung rekap per siswa
   const result = Object.values(map).map(item => {
     const sem = { S:0, I:0, A:0, D:0, T:0 };
@@ -580,7 +585,7 @@ const getRekapTidakHadir = asyncHandler(async (req, res) => {
     return { ...item, rekap: sem, rekapBulan: bln };
   });
 
-  return success(res, result);
+  return success(res, { siswa: result, tanggal: tanggalList });
 });
 
 module.exports = {
