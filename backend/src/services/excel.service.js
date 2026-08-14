@@ -50,7 +50,7 @@ const generateExcel = async (data) => {
 async function buildAbsensiSheet(wb, data) {
   const ws = wb.addWorksheet('Rekap Absensi');
   const period = `${data.params?.tanggalMulai || '-'} s/d ${data.params?.tanggalSelesai || '-'}`;
-  const cols = ['No','NIS','Nama Siswa','Kelas','Hadir','Sakit','Izin','Alpha','Terlambat','Dispensasi','Total','% Hadir'];
+  const cols = ['No','NISN','Nama Siswa','Kelas','Hadir','Sakit','Izin','Alpha','Terlambat','Dispensasi','Total','% Hadir'];
 
   // Judul
   ws.mergeCells(`A1:L1`);
@@ -80,7 +80,7 @@ async function buildAbsensiSheet(wb, data) {
 
     const row = ws.addRow([
       i + 1,
-      r.siswa?.nis || '-',
+      r.siswa?.nisn || r.siswa?.nis || '-',
       r.siswa?.nama || '-',
       r.siswa?.kelasHistori?.[0]?.kelas?.nama || '-',
       r.hadir || 0,
@@ -173,7 +173,7 @@ async function buildRekapKelasSheet(wb, data) {
 async function buildPelanggaranSheet(wb, data) {
   const ws = wb.addWorksheet('Rekap Pelanggaran');
   const period = `${data.params?.tanggalMulai || '-'} s/d ${data.params?.tanggalSelesai || '-'}`;
-  const cols = ['No','NIS','Nama Siswa','Kelas','Jenis Pelanggaran','Poin','Tanggal','Keterangan'];
+  const cols = ['No','NISN','Nama Siswa','Kelas','Jenis Pelanggaran','Poin','Tanggal','Keterangan'];
 
   ws.mergeCells('A1:H1');
   ws.getCell('A1').value = `REKAP PELANGGARAN — ${SCHOOL_NAME}`;
@@ -198,7 +198,7 @@ async function buildPelanggaranSheet(wb, data) {
     const isStripe = i % 2 === 1;
     const row = ws.addRow([
       i + 1,
-      r.siswa?.nis || '-',
+      r.siswa?.nisn || r.siswa?.nis || '-',
       r.siswa?.nama || '-',
       r.kelas?.nama || '-',
       r.jenisPelanggaran?.nama || '-',

@@ -164,7 +164,7 @@ const getRekapPelanggaran = asyncHandler(async (req, res) => {
   const pelanggaran = await prisma.pelanggaran.findMany({
     where,
     include: {
-      siswa: { select: { id: true, nama: true, nis: true } },
+      siswa: { select: { id: true, nama: true, nis: true, nisn: true } },
       kelas: { select: { nama: true } },
       jenisPelanggaran: { select: { nama: true, poin: true } },
     },
@@ -280,7 +280,7 @@ const exportPDF = asyncHandler(async (req, res) => {
       const result = await prisma.pelanggaran.findMany({
         where: buildPelanggaranWhere({ tanggalMulai, tanggalSelesai, kelasId }),
         include: {
-          siswa: { select: { nama: true, nis: true } },
+          siswa: { select: { nama: true, nis: true, nisn: true } },
           kelas: { select: { nama: true } },
           jenisPelanggaran: { select: { nama: true, poin: true } },
         },
@@ -393,7 +393,7 @@ const exportExcel = asyncHandler(async (req, res) => {
       const result = await prisma.pelanggaran.findMany({
         where: buildPelanggaranWhere({ tanggalMulai, tanggalSelesai, kelasId }),
         include: {
-          siswa: { select: { nama: true, nis: true } },
+          siswa: { select: { nama: true, nis: true, nisn: true } },
           kelas: { select: { nama: true } },
           jenisPelanggaran: { select: { nama: true, poin: true } },
         },
@@ -421,16 +421,16 @@ const exportCSV = asyncHandler(async (req, res) => {
     const records = await prisma.absensi.findMany({
       where: buildAbsensiWhere(params),
       include: {
-        siswa: { select: { nama: true, nis: true } },
+        siswa: { select: { nama: true, nis: true, nisn: true } },
         kelas: { select: { nama: true } },
       },
       orderBy: { tanggal: 'desc' },
       take: 10000,
     });
 
-    csvData = 'No,NIS,Nama Siswa,Kelas,Tanggal,Status,Keterangan\n';
+    csvData = 'No,NISN,Nama Siswa,Kelas,Tanggal,Status,Keterangan\n';
     records.forEach((r, i) => {
-      csvData += `${i + 1},${r.siswa.nis},"${r.siswa.nama}","${r.kelas.nama}",${r.tanggal.toISOString().split('T')[0]},${r.status},"${r.keterangan || ''}"\n`;
+      csvData += `${i + 1},${r.siswa.nisn || r.siswa.nis},"${r.siswa.nama}","${r.kelas.nama}",${r.tanggal.toISOString().split('T')[0]},${r.status},"${r.keterangan || ''}"\n`;
     });
   }
 

@@ -103,7 +103,7 @@ function buildRekapAbsensiPDF(data, pageSize) {
   const body = [
     [
       { text: 'No',       style: 'thdr', ...THDR_FILL },
-      { text: 'NIS',      style: 'thdr', ...THDR_FILL },
+      { text: 'NISN',     style: 'thdr', ...THDR_FILL },
       { text: 'Nama Siswa', style: 'thdr', ...THDR_FILL },
       { text: 'Kelas',    style: 'thdr', ...THDR_FILL },
       { text: 'Hadir',    style: 'thdr', ...THDR_FILL },
@@ -121,7 +121,7 @@ function buildRekapAbsensiPDF(data, pageSize) {
       const fill  = i % 2 === 1 ? STRIPE : {};
       return [
         { text: i + 1, style: 'cellCenter', ...fill },
-        { text: r.siswa?.nis || '-', style: 'cellCenter', ...fill },
+        { text: r.siswa?.nisn || r.siswa?.nis || '-', style: 'cellCenter', ...fill },
         { text: r.siswa?.nama || '-', style: 'cell', ...fill },
         { text: r.siswa?.kelasHistori?.[0]?.kelas?.nama || '-', style: 'cell', ...fill },
         { text: r.hadir || 0, style: 'cellCenter', color: '#16a34a', bold: true, ...fill },
@@ -227,7 +227,7 @@ function buildRekapPelanggaranPDF(data, pageSize) {
   const body = [
     [
       { text: 'No',       style: 'thdr', ...THDR_FILL },
-      { text: 'NIS',      style: 'thdr', ...THDR_FILL },
+      { text: 'NISN',     style: 'thdr', ...THDR_FILL },
       { text: 'Nama Siswa', style: 'thdr', ...THDR_FILL },
       { text: 'Kelas',    style: 'thdr', ...THDR_FILL },
       { text: 'Jenis Pelanggaran', style: 'thdr', ...THDR_FILL },
@@ -239,7 +239,7 @@ function buildRekapPelanggaranPDF(data, pageSize) {
       const fill = i % 2 === 1 ? STRIPE : {};
       return [
         { text: i + 1, style: 'cellCenter', ...fill },
-        { text: r.siswa?.nis || '-', style: 'cellCenter', ...fill },
+        { text: r.siswa?.nisn || r.siswa?.nis || '-', style: 'cellCenter', ...fill },
         { text: r.siswa?.nama || '-', style: 'cell', ...fill },
         { text: r.kelas?.nama || '-', style: 'cell', ...fill },
         { text: r.jenisPelanggaran?.nama || '-', style: 'cell', ...fill },
