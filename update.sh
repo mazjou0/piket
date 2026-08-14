@@ -37,7 +37,7 @@ echo -e "${GREEN}  Database OK${NC}"
 # 4. Build frontend
 echo -e "\n${YELLOW}[4/5] Build frontend...${NC}"
 cd "$ROOT/frontend"
-npm install --omit=dev
+npm install          # install semua termasuk devDependencies (vite, dll)
 npm run build
 echo -e "${GREEN}  Frontend build selesai${NC}"
 
