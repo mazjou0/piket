@@ -98,17 +98,31 @@ const update = asyncHandler(async (req, res) => {
   const existing = await prisma.pelanggaran.findUnique({ where: { id } });
   if (!existing) return notFound(res, 'Pelanggaran tidak ditemukan');
 
+  const { jenisPelanggaranId, tanggal, keterangan, tindakan } = req.body;
+
+  // Jika jenis pelanggaran berubah, ambil poin baru
+  let poin = existing.poin;
+  if (jenisPelanggaranId && jenisPelanggaranId !== existing.jenisPelanggaranId) {
+    const jenis = await prisma.jenisPelanggaran.findUnique({ where: { id: jenisPelanggaranId } });
+    if (!jenis) return notFound(res, 'Jenis pelanggaran tidak ditemukan');
+    poin = jenis.poin;
+  }
+
   const updated = await prisma.pelanggaran.update({
     where: { id },
     data: {
-      keterangan: req.body.keterangan,
-      tindakan: req.body.tindakan,
+      ...(jenisPelanggaranId && { jenisPelanggaranId, poin }),
+      ...(tanggal && { tanggal: new Date(tanggal) }),
+      keterangan: keterangan ?? existing.keterangan,
+      tindakan: tindakan ?? existing.tindakan,
       lampiranUrl: req.file ? `/uploads/surat/${req.file.filename}` : existing.lampiranUrl,
     },
-    include: { jenisPelanggaran: true },
+    include: { jenisPelanggaran: true, siswa: { select: { id: true, nama: true, nis: true } }, kelas: { select: { nama: true } } },
   });
 
   await updateAkumulasiPoin(existing.siswaId);
+
+  await auditLog({ userId: req.user?.id, aksi: 'UPDATE', tabel: 'pelanggaran', dataId: id, dataBefore: existing, dataAfter: updated, req });
 
   return success(res, updated, 'Pelanggaran berhasil diperbarui');
 });

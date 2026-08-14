@@ -7,7 +7,7 @@ import SearchInput from '@/components/ui/SearchInput';
 import Modal from '@/components/ui/Modal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { PeringatanBadge } from '@/components/ui/Badge';
-import { Plus, Trash2, Eye, AlertTriangle, Search } from 'lucide-react';
+import { Plus, Trash2, Eye, AlertTriangle, Search, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDate } from '@/lib/utils';
 import { useForm, Controller } from 'react-hook-form';
@@ -224,6 +224,77 @@ function PelanggaranForm({ onSuccess, onCancel }) {
   );
 }
 
+/* ── Form Edit Pelanggaran ── */
+function EditPelanggaranForm({ pelanggaran, onSuccess, onCancel }) {
+  const { data: jenisList } = useQuery({
+    queryKey: ['jenis-pelanggaran'],
+    queryFn: () => api.get('/pelanggaran/jenis').then(r => r.data.data),
+  });
+
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    defaultValues: {
+      jenisPelanggaranId: pelanggaran.jenisPelanggaran?.id || '',
+      tanggal: pelanggaran.tanggal ? new Date(pelanggaran.tanggal).toISOString().split('T')[0] : '',
+      keterangan: pelanggaran.keterangan || '',
+      tindakan: pelanggaran.tindakan || '',
+    },
+  });
+
+  const mut = useMutation({
+    mutationFn: (data) => api.put(`/pelanggaran/${pelanggaran.id}`, data),
+    onSuccess: () => { toast.success('Pelanggaran berhasil diperbarui'); onSuccess(); },
+    onError: (err) => toast.error(err?.response?.data?.message || 'Gagal memperbarui'),
+  });
+
+  return (
+    <form onSubmit={handleSubmit(d => mut.mutate(d))} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Info siswa — read only */}
+      <div style={{
+        padding: '10px 14px', borderRadius: 8,
+        background: 'rgba(var(--color-primary-rgb), 0.08)',
+        border: '1px solid rgba(var(--color-primary-rgb), 0.2)',
+      }}>
+        <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--color-foreground)' }}>{pelanggaran.siswa?.nama}</p>
+        <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--color-muted)' }}>{pelanggaran.siswa?.nis} · {pelanggaran.kelas?.nama}</p>
+      </div>
+
+      <div>
+        <label className="label">Jenis Pelanggaran *</label>
+        <select {...register('jenisPelanggaranId', { required: 'Wajib dipilih' })} className="input">
+          <option value="">Pilih Jenis...</option>
+          {jenisList?.map(j => (
+            <option key={j.id} value={j.id}>{j.nama} ({j.poin} poin)</option>
+          ))}
+        </select>
+        {errors.jenisPelanggaranId && <p style={{ color: '#ef4444', fontSize: 11, marginTop: 4 }}>{errors.jenisPelanggaranId.message}</p>}
+      </div>
+
+      <div>
+        <label className="label">Tanggal *</label>
+        <input type="date" {...register('tanggal', { required: 'Wajib diisi' })} className="input" />
+        {errors.tanggal && <p style={{ color: '#ef4444', fontSize: 11, marginTop: 4 }}>{errors.tanggal.message}</p>}
+      </div>
+
+      <div>
+        <label className="label">Keterangan</label>
+        <textarea {...register('keterangan')} className="input" rows={2} placeholder="Deskripsi pelanggaran..." />
+      </div>
+
+      <div>
+        <label className="label">Tindakan</label>
+        <input {...register('tindakan')} className="input" placeholder="Tindakan yang diambil..." />
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+        <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={onCancel}>Batal</button>
+        <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={mut.isPending}>
+          {mut.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function PelanggaranPage() {
   const qc = useQueryClient();
   const { user } = useAuthStore();
@@ -233,6 +304,7 @@ export default function PelanggaranPage() {
   const [showForm, setShowForm] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [editData, setEditData] = useState(null);
   const [tanggalMulai, setTanggalMulai] = useState('');
   const [tanggalSelesai, setTanggalSelesai] = useState('');
 
@@ -290,8 +362,13 @@ export default function PelanggaranPage() {
       header: 'Aksi',
       cell: (row) => (
         <div className="flex items-center gap-1">
-          <button onClick={() => setDetail(row)} className="btn-ghost btn-sm p-1.5"><Eye className="w-3.5 h-3.5" /></button>
-          {canEdit && <button onClick={() => setDeleteId(row.id)} className="btn-ghost btn-sm p-1.5 text-danger-400"><Trash2 className="w-3.5 h-3.5" /></button>}
+          <button onClick={() => setDetail(row)} className="btn-ghost btn-sm p-1.5" title="Lihat detail"><Eye className="w-3.5 h-3.5" /></button>
+          {canEdit && (
+            <button onClick={() => setEditData(row)} className="btn-ghost btn-sm p-1.5 text-warning-400" title="Edit pelanggaran">
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {canEdit && <button onClick={() => setDeleteId(row.id)} className="btn-ghost btn-sm p-1.5 text-danger-400" title="Hapus pelanggaran"><Trash2 className="w-3.5 h-3.5" /></button>}
         </div>
       ),
       headerClass: 'text-right', cellClass: 'text-right',
@@ -339,6 +416,17 @@ export default function PelanggaranPage() {
             <div><span className="label inline-block">Keterangan</span><p className="text-dark-300">{detail.keterangan || '-'}</p></div>
             <div><span className="label inline-block">Tindakan</span><p className="text-dark-300">{detail.tindakan || '-'}</p></div>
           </div>
+        )}
+      </Modal>
+
+      {/* Modal Edit */}
+      <Modal open={!!editData} onClose={() => setEditData(null)} title="Edit Pelanggaran" size="md">
+        {editData && (
+          <EditPelanggaranForm
+            pelanggaran={editData}
+            onSuccess={() => { setEditData(null); qc.invalidateQueries(['pelanggaran']); }}
+            onCancel={() => setEditData(null)}
+          />
         )}
       </Modal>
 
