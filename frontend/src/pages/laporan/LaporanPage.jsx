@@ -603,8 +603,7 @@ export default function LaporanPage() {
     const schoolName  = sekolahInfo?.nama    || 'SMKN 1 Kras';
     const schoolAddr  = sekolahInfo?.alamat  || 'Jl. Raya Kras, Kediri, Jawa Timur';
     const schoolPhone = sekolahInfo?.telepon || '';
-    // Landscape agar kolom tanggal muat banyak
-    const psSize      = pageSize === 'F4' ? '330.2mm 215.9mm' : '297mm 210mm';
+    const psSize      = pageSize === 'F4' ? '330.2mm 215.9mm' : '297mm 210mm'; // landscape
     const today       = new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
     const signerName  = user?.nama || user?.username || '';
     const signerNip   = user?.nip  || '';
@@ -616,9 +615,19 @@ export default function LaporanPage() {
     const siswaList   = matriksData.siswa;
     const tanggalList = matriksData.tanggal;
 
-    // Status config
+    // Bulan terakhir = bulan dari tanggal selesai
+    const bulanAkhir  = new Date(tanggalSelesai).getMonth();
+    const tahunAkhirN = new Date(tanggalSelesai).getFullYear();
+    const namaBulan   = new Date(tanggalSelesai).toLocaleString('id-ID', { month:'long' });
+
+    // Tanggal yang termasuk bulan terakhir
+    const tanggalBulanIni = tanggalList.filter(t => {
+      const d = new Date(t);
+      return d.getMonth() === bulanAkhir && d.getFullYear() === tahunAkhirN;
+    });
+
     const ST = {
-      HADIR:       { lbl:'H',  bg:'',        color:'#16a34a' },
+      HADIR:       { lbl:'H',  bg:'#dcfce7', color:'#16a34a' },
       SAKIT:       { lbl:'S',  bg:'#fef9c3', color:'#b45309' },
       IZIN:        { lbl:'I',  bg:'#dbeafe', color:'#1d4ed8' },
       ALPHA:       { lbl:'A',  bg:'#fee2e2', color:'#dc2626' },
@@ -632,12 +641,16 @@ export default function LaporanPage() {
     const fmtTgl  = s => { const d=new Date(s); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`; };
     const fmtHari = s => ['Min','Sen','Sel','Rab','Kam','Jum','Sab'][new Date(s).getDay()];
 
-    // Header baris tanggal (2 baris: hari + tgl)
+    // Helper: cell rekap angka
+    const tdRekap = (val, color, bg, stripe) =>
+      `<td style="width:14px;text-align:center;border:0.5px solid #cbd5e1;background:${val?(bg||stripe):stripe};font-size:7px;color:${color};font-weight:700;padding:1px 0">${val||''}</td>`;
+
+    // Header kolom tanggal
     const thTgl = tanggalList.map(t => {
       const isMinggu = new Date(t).getDay() === 0;
       const bg = isMinggu ? '#334155' : '#1e293b';
-      return `<th style="width:16px;min-width:16px;padding:0;background:${bg};color:#fff;border:0.5px solid #475569;text-align:center;font-size:6px;font-weight:600">
-        <div style="writing-mode:vertical-lr;transform:rotate(180deg);padding:2px 0;line-height:1.1">${fmtHari(t)}<br/>${fmtTgl(t)}</div>
+      return `<th style="width:14px;min-width:14px;padding:0;background:${bg};color:#fff;border:0.5px solid #475569;text-align:center">
+        <div style="writing-mode:vertical-lr;transform:rotate(180deg);padding:2px 0;line-height:1.1;font-size:6px">${fmtHari(t)}<br/>${fmtTgl(t)}</div>
       </th>`;
     }).join('');
 
@@ -646,45 +659,88 @@ export default function LaporanPage() {
       const map = {};
       (item.absensi||[]).forEach(a => { map[a.tanggal?.split?.('T')[0]||a.tanggal] = a.status; });
 
-      // Rekap
-      let cH=0,cS=0,cI=0,cA=0,cT=0,cD=0,cPC=0,cDN=0,cL=0;
+      // Rekap SEMESTER (semua tanggal)
+      let sH=0,sS=0,sI=0,sA=0,sT=0,sD=0;
       Object.values(map).forEach(s => {
-        if(s==='HADIR') cH++;
-        else if(s==='SAKIT') cS++;
-        else if(s==='IZIN') cI++;
-        else if(s==='ALPHA') cA++;
-        else if(s==='TERLAMBAT') cT++;
-        else if(s==='DISPENSASI') cD++;
-        else if(s==='PULANG_CEPAT') cPC++;
-        else if(s==='DINAS') cDN++;
-        else if(s==='LAINNYA') cL++;
+        if(s==='HADIR') sH++;
+        else if(s==='SAKIT') sS++;
+        else if(s==='IZIN') sI++;
+        else if(s==='ALPHA') sA++;
+        else if(s==='TERLAMBAT') sT++;
+        else if(s==='DISPENSASI') sD++;
       });
+      const sTotal = sS + sI + sA + sD;
 
+      // Rekap BULAN TERAKHIR
+      let bS=0,bI=0,bA=0,bD=0,bT=0;
+      tanggalBulanIni.forEach(t => {
+        const st = map[t];
+        if(st==='SAKIT') bS++;
+        else if(st==='IZIN') bI++;
+        else if(st==='ALPHA') bA++;
+        else if(st==='DISPENSASI') bD++;
+        else if(st==='TERLAMBAT') bT++;
+      });
+      const bTotal = bS + bI + bA + bD;
+
+      // Sel grid harian
       const cells = tanggalList.map(t => {
         const st = map[t];
         const cfg = st ? ST[st] : null;
-        // Hadir = hijau muda tipis, kosong = putih/abu, lainnya = warna penuh
-        if (!st)         return `<td style="width:16px;min-width:16px;padding:0;border:0.5px solid #e2e8f0;background:#f8fafc"></td>`;
-        if (st==='HADIR') return `<td style="width:16px;min-width:16px;padding:0;border:0.5px solid #e2e8f0;background:#dcfce7;text-align:center;font-size:6px;color:#16a34a"></td>`;
-        return `<td style="width:16px;min-width:16px;padding:0;border:0.5px solid #e2e8f0;background:${cfg?.bg||'#fff'};text-align:center;font-size:6px;color:${cfg?.color||'#111'};font-weight:700">${cfg?.lbl||'-'}</td>`;
+        if (!st)          return `<td style="width:14px;min-width:14px;padding:0;border:0.5px solid #e2e8f0;background:#f8fafc"></td>`;
+        if (st==='HADIR') return `<td style="width:14px;min-width:14px;padding:0;border:0.5px solid #e2e8f0;background:#dcfce7"></td>`;
+        return `<td style="width:14px;min-width:14px;padding:0;border:0.5px solid #e2e8f0;background:${cfg?.bg};text-align:center;font-size:6px;color:${cfg?.color};font-weight:700">${cfg?.lbl}</td>`;
       }).join('');
 
       const stripe = idx%2===1 ? '#f8fafc' : '#fff';
-      const rekap = [
-        `<td style="width:16px;text-align:center;border:0.5px solid #e2e8f0;background:${stripe};font-size:7px;color:#16a34a;font-weight:700;padding:1px">${cH||''}</td>`,
-        `<td style="width:16px;text-align:center;border:0.5px solid #e2e8f0;background:${cS?'#fef9c3':stripe};font-size:7px;color:#b45309;font-weight:700;padding:1px">${cS||''}</td>`,
-        `<td style="width:16px;text-align:center;border:0.5px solid #e2e8f0;background:${cI?'#dbeafe':stripe};font-size:7px;color:#1d4ed8;font-weight:700;padding:1px">${cI||''}</td>`,
-        `<td style="width:16px;text-align:center;border:0.5px solid #e2e8f0;background:${cA?'#fee2e2':stripe};font-size:7px;color:#dc2626;font-weight:700;padding:1px">${cA||''}</td>`,
-        `<td style="width:16px;text-align:center;border:0.5px solid #e2e8f0;background:${cT?'#ffedd5':stripe};font-size:7px;color:#c2410c;font-weight:700;padding:1px">${cT||''}</td>`,
-      ].join('');
-
       return `<tr>
-        <td style="padding:1px 2px;border:0.5px solid #e2e8f0;text-align:center;background:${stripe};font-size:7px;white-space:nowrap">${idx+1}</td>
+        <td style="padding:1px 2px;border:0.5px solid #e2e8f0;text-align:center;background:${stripe};font-size:7px">${idx+1}</td>
         <td style="padding:1px 4px;border:0.5px solid #e2e8f0;background:${stripe};font-size:7.5px;font-weight:600;white-space:nowrap">${item.siswa?.nama||'-'}</td>
-        ${rekap}
+        ${tdRekap(sH,'#16a34a','',stripe)}
+        ${tdRekap(sS,'#b45309','#fef9c3',stripe)}
+        ${tdRekap(sI,'#1d4ed8','#dbeafe',stripe)}
+        ${tdRekap(sA,'#dc2626','#fee2e2',stripe)}
+        ${tdRekap(sD,'#7c3aed','#ede9fe',stripe)}
+        ${tdRekap(sTotal,'#1e293b','#e2e8f0',stripe)}
+        <td style="width:4px;background:#94a3b8;border:none;padding:0"></td>
+        ${tdRekap(bS,'#b45309','#fef9c3',stripe)}
+        ${tdRekap(bI,'#1d4ed8','#dbeafe',stripe)}
+        ${tdRekap(bA,'#dc2626','#fee2e2',stripe)}
+        ${tdRekap(bD,'#7c3aed','#ede9fe',stripe)}
+        ${tdRekap(bTotal,'#1e293b','#e2e8f0',stripe)}
+        <td style="width:4px;background:#94a3b8;border:none;padding:0"></td>
         ${cells}
       </tr>`;
     }).join('');
+
+    // Sub-header: semester | bulan | tanggal
+    const subHeader = `<tr>
+      <th colspan="2" style="background:#0f172a;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 4px;text-align:center">Nama</th>
+      <th colspan="6" style="background:#166534;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px;text-align:center">Rekap Semester</th>
+      <th style="width:4px;background:#94a3b8;border:none;padding:0"></th>
+      <th colspan="5" style="background:#1e40af;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px;text-align:center">Bulan ${namaBulan}</th>
+      <th style="width:4px;background:#94a3b8;border:none;padding:0"></th>
+      <th colspan="${tanggalList.length}" style="background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px;text-align:center">Data Harian</th>
+    </tr>`;
+
+    const mainHeader = `<tr>
+      <th style="width:22px;background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px;text-align:center" rowspan="2">No</th>
+      <th style="background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 4px;text-align:left" rowspan="2">Nama Siswa</th>
+      <th style="width:14px;background:#16a34a;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">H</th>
+      <th style="width:14px;background:#fbbf24;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">S</th>
+      <th style="width:14px;background:#3b82f6;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">I</th>
+      <th style="width:14px;background:#dc2626;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">A</th>
+      <th style="width:14px;background:#8b5cf6;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">D</th>
+      <th style="width:14px;background:#334155;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">Jml</th>
+      <th style="width:4px;background:#94a3b8;border:none;padding:0"></th>
+      <th style="width:14px;background:#fbbf24;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">S</th>
+      <th style="width:14px;background:#3b82f6;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">I</th>
+      <th style="width:14px;background:#dc2626;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">A</th>
+      <th style="width:14px;background:#8b5cf6;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">D</th>
+      <th style="width:14px;background:#334155;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">Jml</th>
+      <th style="width:4px;background:#94a3b8;border:none;padding:0"></th>
+      ${thTgl}
+    </tr>`;
 
     const html = `<!DOCTYPE html><html lang="id"><head>
     <meta charset="utf-8"/>
@@ -694,7 +750,7 @@ export default function LaporanPage() {
       *{ box-sizing:border-box; margin:0; padding:0; }
       body{ font-family:Arial,sans-serif; font-size:8px; color:#111; }
       .kop{ text-align:center; border-bottom:2px solid #1e293b; padding-bottom:4px; margin-bottom:4px; }
-      .kop-nama{ font-size:13px; font-weight:800; letter-spacing:.3px; }
+      .kop-nama{ font-size:13px; font-weight:800; }
       .kop-sub{ font-size:7.5px; color:#555; margin-top:1px; }
       .judul{ font-size:10px; font-weight:700; text-align:center; margin:4px 0 1px; text-transform:uppercase; }
       .period{ font-size:7.5px; text-align:center; color:#555; margin-bottom:5px; }
@@ -713,20 +769,12 @@ export default function LaporanPage() {
     <div class="period">Kelas: <strong>${namaKelas}</strong> &nbsp;|&nbsp; Periode: ${period}</div>
     <table>
       <thead>
-        <tr>
-          <th style="width:22px;background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">No</th>
-          <th style="background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 4px;text-align:left">Nama Siswa</th>
-          <th style="width:16px;background:#16a34a;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">H</th>
-          <th style="width:16px;background:#fbbf24;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">S</th>
-          <th style="width:16px;background:#3b82f6;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">I</th>
-          <th style="width:16px;background:#dc2626;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">A</th>
-          <th style="width:16px;background:#f97316;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">T</th>
-          ${thTgl}
-        </tr>
+        ${subHeader}
+        ${mainHeader}
       </thead>
       <tbody>${rows}</tbody>
     </table>
-    <p class="legend">Ket: H=Hadir &nbsp;S=Sakit &nbsp;I=Izin &nbsp;A=Alpha &nbsp;T=Terlambat &nbsp;D=Dispensasi &nbsp;PC=Pulang Cepat &nbsp;DN=Dinas &nbsp;L=Lainnya</p>
+    <p class="legend">Ket: H=Hadir · S=Sakit · I=Izin · A=Alpha · D=Dispensasi · T=Terlambat · PC=Pulang Cepat · DN=Dinas · L=Lainnya &nbsp;|&nbsp; Jml=Jumlah tidak hadir (S+I+A+D)</p>
     <p class="legend">Dicetak: ${new Date().toLocaleString('id-ID')} &nbsp;|&nbsp; Total: ${siswaList.length} siswa &nbsp;|&nbsp; ${tanggalList.length} hari</p>
     <div class="ttd"><div class="ttd-box">
       Kras, ${today}<br/>Wali Kelas,<br/><br/><br/>
@@ -976,109 +1024,169 @@ export default function LaporanPage() {
             <div style={{ textAlign:'center', padding:'40px 0', color:'var(--color-muted)' }}>
               <p>Tidak ada data absensi untuk periode dan kelas yang dipilih</p>
             </div>
-          ) : (
-            <>
-              {/* Info */}
-              <div style={{ display:'flex', gap:16, marginBottom:10, flexWrap:'wrap', alignItems:'center' }}>
-                <span style={{ fontSize:13, fontWeight:600, color:'var(--color-foreground)' }}>
-                  {matriksData.siswa.length} siswa · {matriksData.tanggal.length} hari
-                </span>
-                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                  {[
-                    { k:'H', label:'Hadir',   color:'#16a34a', bg:'#dcfce7' },
-                    { k:'S', label:'Sakit',   color:'#f59e0b', bg:'#fef9c3' },
-                    { k:'I', label:'Izin',    color:'#3b82f6', bg:'#dbeafe' },
-                    { k:'A', label:'Alpha',   color:'#dc2626', bg:'#fee2e2' },
-                    { k:'T', label:'Terlambat',color:'#f97316',bg:'#ffedd5' },
-                    { k:'D', label:'Dispensasi',color:'#8b5cf6',bg:'#ede9fe' },
-                  ].map(s => (
-                    <span key={s.k} style={{ padding:'2px 8px', borderRadius:5, fontSize:11, fontWeight:700, background:s.bg, color:s.color, border:`1px solid ${s.color}30` }}>
-                      {s.k} = {s.label}
+          ) : (() => {
+              // Bulan terakhir dari tanggalSelesai
+              const bulanAkhir  = new Date(tanggalSelesai).getMonth();
+              const tahunAkhirN = new Date(tanggalSelesai).getFullYear();
+              const namaBulan   = new Date(tanggalSelesai).toLocaleString('id-ID', { month:'short' });
+              const tanggalBulanIni = matriksData.tanggal.filter(t => {
+                const d = new Date(t); return d.getMonth()===bulanAkhir && d.getFullYear()===tahunAkhirN;
+              });
+              const ST_STYLE = {
+                HADIR:       { bg:'#dcfce7', color:'#16a34a', lbl:'H' },
+                SAKIT:       { bg:'#fef9c3', color:'#b45309', lbl:'S' },
+                IZIN:        { bg:'#dbeafe', color:'#1d4ed8', lbl:'I' },
+                ALPHA:       { bg:'#fee2e2', color:'#dc2626', lbl:'A' },
+                DISPENSASI:  { bg:'#ede9fe', color:'#7c3aed', lbl:'D' },
+                TERLAMBAT:   { bg:'#ffedd5', color:'#c2410c', lbl:'T' },
+                PULANG_CEPAT:{ bg:'#fce7f3', color:'#be185d', lbl:'PC' },
+                DINAS:       { bg:'#cffafe', color:'#0e7490', lbl:'DN' },
+                LAINNYA:     { bg:'#f1f5f9', color:'#64748b', lbl:'L' },
+              };
+              const thStyle = (bg) => ({ padding:'3px 4px', background:bg, color:'#fff', border:'1px solid #475569', fontSize:10, textAlign:'center', minWidth:26 });
+              const sepStyle = { width:6, background:'#94a3b8', border:'none', padding:0 };
+              return (
+                <>
+                  {/* Legend */}
+                  <div style={{ display:'flex', gap:8, marginBottom:8, flexWrap:'wrap', alignItems:'center' }}>
+                    <span style={{ fontSize:12, fontWeight:600, color:'var(--color-foreground)' }}>
+                      {matriksData.siswa.length} siswa · {matriksData.tanggal.length} hari
                     </span>
-                  ))}
-                </div>
-              </div>
+                    {[
+                      { k:'H', label:'Hadir',   color:'#16a34a', bg:'#dcfce7' },
+                      { k:'S', label:'Sakit',   color:'#b45309', bg:'#fef9c3' },
+                      { k:'I', label:'Izin',    color:'#1d4ed8', bg:'#dbeafe' },
+                      { k:'A', label:'Alpha',   color:'#dc2626', bg:'#fee2e2' },
+                      { k:'T', label:'Terlambat',color:'#c2410c',bg:'#ffedd5' },
+                      { k:'D', label:'Dispensasi',color:'#7c3aed',bg:'#ede9fe' },
+                    ].map(s => (
+                      <span key={s.k} style={{ padding:'2px 7px', borderRadius:5, fontSize:10, fontWeight:700, background:s.bg, color:s.color, border:`1px solid ${s.color}30` }}>
+                        {s.k} = {s.label}
+                      </span>
+                    ))}
+                  </div>
 
-              {/* Tabel matriks — scroll horizontal */}
-              <div style={{ overflowX:'auto' }}>
-                <table style={{ borderCollapse:'collapse', fontSize:10, whiteSpace:'nowrap' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ padding:'4px 6px', background:'#1e293b', color:'#fff', border:'1px solid #475569', fontSize:10, position:'sticky', left:0, zIndex:2 }}>No</th>
-                      <th style={{ padding:'4px 8px', background:'#1e293b', color:'#fff', border:'1px solid #475569', fontSize:10, textAlign:'left', position:'sticky', left:28, zIndex:2, minWidth:160 }}>Nama Siswa</th>
-                      {['H','S','I','A','T'].map(k => (
-                        <th key={k} style={{ padding:'4px 6px', background: k==='H'?'#16a34a':k==='S'?'#f59e0b':k==='I'?'#3b82f6':k==='A'?'#dc2626':'#f97316', color:'#fff', border:'1px solid #475569', fontSize:10, minWidth:28 }}>{k}</th>
-                      ))}
-                      {matriksData.tanggal.map(t => {
-                        const d = new Date(t);
-                        const hari = ['Min','Sen','Sel','Rab','Kam','Jum','Sab'][d.getDay()];
-                        const tgl  = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
-                        const isMinggu = d.getDay() === 0;
-                        return (
-                          <th key={t} style={{ padding:'2px 1px', background: isMinggu ? '#334155' : '#1e293b', color: isMinggu ? '#94a3b8' : '#fff', border:'1px solid #475569', fontSize:8, minWidth:28, maxWidth:28, textAlign:'center' }}>
-                            <div style={{ writingMode:'vertical-lr', transform:'rotate(180deg)', lineHeight:1.3, fontSize:8 }}>
-                              {hari}<br/>{tgl}
-                            </div>
-                          </th>
-                        );
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {matriksData.siswa.map((item, idx) => {
-                      const map = {};
-                      (item.absensi || []).forEach(a => {
-                        const tgl = (a.tanggal?.split?.('T')[0] || a.tanggal);
-                        map[tgl] = a.status;
-                      });
-                      const counts = { H:0, S:0, I:0, A:0, T:0 };
-                      Object.values(map).forEach(st => {
-                        if (st==='HADIR') counts.H++;
-                        else if (st==='SAKIT') counts.S++;
-                        else if (st==='IZIN') counts.I++;
-                        else if (st==='ALPHA') counts.A++;
-                        else if (st==='TERLAMBAT') counts.T++;
-                      });
-                      const STATUS_STYLE = {
-                        HADIR:      { bg:'#dcfce7', color:'#16a34a', lbl:'H' },
-                        SAKIT:      { bg:'#fef9c3', color:'#f59e0b', lbl:'S' },
-                        IZIN:       { bg:'#dbeafe', color:'#3b82f6', lbl:'I' },
-                        ALPHA:      { bg:'#fee2e2', color:'#dc2626', lbl:'A' },
-                        DISPENSASI: { bg:'#ede9fe', color:'#8b5cf6', lbl:'D' },
-                        TERLAMBAT:  { bg:'#ffedd5', color:'#f97316', lbl:'T' },
-                        PULANG_CEPAT:{ bg:'#fce7f3', color:'#ec4899', lbl:'PC' },
-                        DINAS:      { bg:'#cffafe', color:'#0891b2', lbl:'DN' },
-                        LAINNYA:    { bg:'#f1f5f9', color:'#64748b', lbl:'L' },
-                      };
-                      const stripe = idx%2===1 ? 'var(--color-surface-hover)' : 'transparent';
-                      return (
-                        <tr key={item.siswa?.id}>
-                          <td style={{ padding:'3px 5px', border:'1px solid var(--color-border)', textAlign:'center', fontSize:10, background:stripe, position:'sticky', left:0, zIndex:1 }}>{idx+1}</td>
-                          <td style={{ padding:'3px 8px', border:'1px solid var(--color-border)', fontWeight:600, fontSize:11, background:stripe, position:'sticky', left:28, zIndex:1, minWidth:160 }}>{item.siswa?.nama}</td>
-                          {['H','S','I','A','T'].map(k => (
-                            <td key={k} style={{ padding:'3px 4px', border:'1px solid var(--color-border)', textAlign:'center', fontSize:10, fontWeight:700, background:stripe,
-                              color: k==='H'?'#16a34a':k==='S'?'#f59e0b':k==='I'?'#3b82f6':k==='A'?'#dc2626':'#f97316' }}>
-                              {counts[k] || ''}
-                            </td>
-                          ))}
+                  {/* Tabel matriks */}
+                  <div style={{ overflowX:'auto' }}>
+                    <table style={{ borderCollapse:'collapse', fontSize:10, whiteSpace:'nowrap' }}>
+                      <thead>
+                        {/* Sub-header grup */}
+                        <tr>
+                          <th colSpan={2} style={{ background:'#0f172a', color:'#fff', border:'1px solid #475569', fontSize:9, padding:'2px 4px', textAlign:'center', position:'sticky', left:0, zIndex:3 }}>Nama</th>
+                          <th colSpan={6} style={{ background:'#166534', color:'#fff', border:'1px solid #475569', fontSize:9, padding:'2px', textAlign:'center' }}>Rekap Semester</th>
+                          <th style={sepStyle}></th>
+                          <th colSpan={5} style={{ background:'#1e40af', color:'#fff', border:'1px solid #475569', fontSize:9, padding:'2px', textAlign:'center' }}>Bulan {namaBulan}</th>
+                          <th style={sepStyle}></th>
+                          <th colSpan={matriksData.tanggal.length} style={{ background:'#1e293b', color:'#fff', border:'1px solid #475569', fontSize:9, padding:'2px', textAlign:'center' }}>Data Harian</th>
+                        </tr>
+                        {/* Header kolom */}
+                        <tr>
+                          <th style={{ ...thStyle('#1e293b'), position:'sticky', left:0, zIndex:2, width:28 }}>No</th>
+                          <th style={{ ...thStyle('#1e293b'), position:'sticky', left:28, zIndex:2, minWidth:160, textAlign:'left', padding:'3px 8px' }}>Nama Siswa</th>
+                          {/* Rekap semester */}
+                          <th style={thStyle('#16a34a')}>H</th>
+                          <th style={thStyle('#f59e0b')}>S</th>
+                          <th style={thStyle('#3b82f6')}>I</th>
+                          <th style={thStyle('#dc2626')}>A</th>
+                          <th style={thStyle('#8b5cf6')}>D</th>
+                          <th style={thStyle('#334155')}>Jml</th>
+                          <th style={sepStyle}></th>
+                          {/* Rekap bulan */}
+                          <th style={thStyle('#f59e0b')}>S</th>
+                          <th style={thStyle('#3b82f6')}>I</th>
+                          <th style={thStyle('#dc2626')}>A</th>
+                          <th style={thStyle('#8b5cf6')}>D</th>
+                          <th style={thStyle('#334155')}>Jml</th>
+                          <th style={sepStyle}></th>
+                          {/* Kolom tanggal */}
                           {matriksData.tanggal.map(t => {
-                            const st = map[t];
-                            const ss = st ? STATUS_STYLE[st] : null;
+                            const d = new Date(t);
+                            const hari = ['Min','Sen','Sel','Rab','Kam','Jum','Sab'][d.getDay()];
+                            const tgl  = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
                             return (
-                              <td key={t} title={st || ''} style={{ padding:'2px 1px', border:'1px solid var(--color-border)', textAlign:'center', fontSize:9, fontWeight:700, minWidth:28, maxWidth:28,
-                                background: ss ? ss.bg : stripe, color: ss ? ss.color : 'var(--color-border)' }}>
-                                {ss ? ss.lbl : '·'}
-                              </td>
+                              <th key={t} style={{ padding:'2px 0', background: d.getDay()===0?'#334155':'#1e293b', color: d.getDay()===0?'#94a3b8':'#fff', border:'1px solid #475569', fontSize:8, minWidth:26, maxWidth:26, textAlign:'center' }}>
+                                <div style={{ writingMode:'vertical-lr', transform:'rotate(180deg)', lineHeight:1.3, fontSize:8 }}>{hari}<br/>{tgl}</div>
+                              </th>
                             );
                           })}
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
+                      </thead>
+                      <tbody>
+                        {matriksData.siswa.map((item, idx) => {
+                          const map = {};
+                          (item.absensi||[]).forEach(a => { map[a.tanggal?.split?.('T')[0]||a.tanggal] = a.status; });
+
+                          // Rekap semester
+                          let sH=0,sS=0,sI=0,sA=0,sT=0,sD=0;
+                          Object.values(map).forEach(s => {
+                            if(s==='HADIR') sH++;
+                            else if(s==='SAKIT') sS++;
+                            else if(s==='IZIN') sI++;
+                            else if(s==='ALPHA') sA++;
+                            else if(s==='TERLAMBAT') sT++;
+                            else if(s==='DISPENSASI') sD++;
+                          });
+                          const sTotal = sS+sI+sA+sD;
+
+                          // Rekap bulan terakhir
+                          let bS=0,bI=0,bA=0,bD=0;
+                          tanggalBulanIni.forEach(t => {
+                            const st=map[t];
+                            if(st==='SAKIT') bS++;
+                            else if(st==='IZIN') bI++;
+                            else if(st==='ALPHA') bA++;
+                            else if(st==='DISPENSASI') bD++;
+                          });
+                          const bTotal = bS+bI+bA+bD;
+
+                          const stripe = idx%2===1 ? 'var(--color-surface-hover)' : 'transparent';
+                          const tdNum  = (val, color, bg) => (
+                            <td style={{ padding:'3px 4px', border:'1px solid var(--color-border)', textAlign:'center', fontSize:10, fontWeight:700,
+                              background: val?(bg||stripe):stripe, color, minWidth:26 }}>
+                              {val||''}
+                            </td>
+                          );
+                          return (
+                            <tr key={item.siswa?.id}>
+                              <td style={{ padding:'3px 5px', border:'1px solid var(--color-border)', textAlign:'center', fontSize:10, background:stripe, position:'sticky', left:0, zIndex:1 }}>{idx+1}</td>
+                              <td style={{ padding:'3px 8px', border:'1px solid var(--color-border)', fontWeight:600, fontSize:11, background:stripe, position:'sticky', left:28, zIndex:1, minWidth:160 }}>{item.siswa?.nama}</td>
+                              {/* Rekap semester */}
+                              {tdNum(sH,'#16a34a','')}
+                              {tdNum(sS,'#b45309','#fef9c3')}
+                              {tdNum(sI,'#1d4ed8','#dbeafe')}
+                              {tdNum(sA,'#dc2626','#fee2e2')}
+                              {tdNum(sD,'#7c3aed','#ede9fe')}
+                              {tdNum(sTotal,'#1e293b','#e2e8f0')}
+                              <td style={{ width:6, background:'#94a3b8', border:'none' }}></td>
+                              {/* Rekap bulan */}
+                              {tdNum(bS,'#b45309','#fef9c3')}
+                              {tdNum(bI,'#1d4ed8','#dbeafe')}
+                              {tdNum(bA,'#dc2626','#fee2e2')}
+                              {tdNum(bD,'#7c3aed','#ede9fe')}
+                              {tdNum(bTotal,'#1e293b','#e2e8f0')}
+                              <td style={{ width:6, background:'#94a3b8', border:'none' }}></td>
+                              {/* Grid harian */}
+                              {matriksData.tanggal.map(t => {
+                                const st = map[t];
+                                const ss = st ? ST_STYLE[st] : null;
+                                return (
+                                  <td key={t} title={st||''} style={{ padding:'2px 1px', border:'1px solid var(--color-border)', textAlign:'center', fontSize:9, fontWeight:700, minWidth:26, maxWidth:26,
+                                    background: !st ? stripe : st==='HADIR' ? '#dcfce7' : (ss?.bg||stripe),
+                                    color: !st ? 'transparent' : st==='HADIR' ? '#16a34a' : (ss?.color||'#111') }}>
+                                    {!st ? '' : st==='HADIR' ? '' : (ss?.lbl||'-')}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              );
+            })()
+          }
         </div>
       ) : (
         <div className="card" style={{ padding:0, overflow:'hidden', marginBottom:24 }}>
