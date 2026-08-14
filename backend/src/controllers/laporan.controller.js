@@ -522,7 +522,7 @@ const getRekapAbsensiDetail = asyncHandler(async (req, res) => {
 });
 
 // ── Rekap Tidak Hadir (S/I/A/D semua kelas) ─────────────────
-// Return: array absensi dengan status bukan HADIR, diurutkan tanggal desc
+// Return: array siswa dengan rekap semester, rekap bulan, dan daftar kejadian tidak hadir
 const getRekapTidakHadir = asyncHandler(async (req, res) => {
   const { tanggalMulai, tanggalSelesai, kelasId } = req.query;
   if (!tanggalMulai || !tanggalSelesai) return badRequest(res, 'Tanggal wajib diisi');
@@ -531,27 +531,56 @@ const getRekapTidakHadir = asyncHandler(async (req, res) => {
   const tglAkhir = new Date(tanggalSelesai);
   tglAkhir.setHours(23, 59, 59, 999);
 
+  // Bulan terakhir dari tanggalSelesai untuk rekap bulan
+  const bulanAkhir  = tglAkhir.getMonth();
+  const tahunAkhir  = tglAkhir.getFullYear();
+
   const where = {
     tanggal: { gte: tglMulai, lte: tglAkhir },
     status: { notIn: ['HADIR', 'DINAS'] },
   };
   if (kelasId) where.kelasId = kelasId;
 
-  const data = await prisma.absensi.findMany({
+  const rows = await prisma.absensi.findMany({
     where,
-    orderBy: [{ tanggal: 'desc' }, { kelas: { nama: 'asc' } }],
+    orderBy: [{ kelas: { nama: 'asc' } }, { siswa: { nama: 'asc' } }, { tanggal: 'asc' }],
     select: {
-      id: true,
-      tanggal: true,
-      status: true,
-      keterangan: true,
+      tanggal: true, status: true, keterangan: true,
       siswa: { select: { id: true, nama: true, nis: true, nisn: true } },
       kelas: { select: { id: true, nama: true } },
     },
-    take: 2000,
+    take: 5000,
   });
 
-  return success(res, data);
+  // Group by siswaId+kelasId
+  const map = {};
+  rows.forEach(r => {
+    const key = `${r.siswa.id}__${r.kelas.id}`;
+    if (!map[key]) map[key] = { siswa: r.siswa, kelas: r.kelas, kejadian: [] };
+    map[key].kejadian.push({
+      tanggal: r.tanggal.toISOString().split('T')[0],
+      status: r.status,
+      keterangan: r.keterangan,
+    });
+  });
+
+  // Hitung rekap per siswa
+  const result = Object.values(map).map(item => {
+    const sem = { S:0, I:0, A:0, D:0, T:0 };
+    const bln = { S:0, I:0, A:0, D:0, T:0 };
+    item.kejadian.forEach(k => {
+      const st = k.status;
+      const d  = new Date(k.tanggal);
+      if (st==='SAKIT')       { sem.S++; if(d.getMonth()===bulanAkhir&&d.getFullYear()===tahunAkhir) bln.S++; }
+      else if(st==='IZIN')    { sem.I++; if(d.getMonth()===bulanAkhir&&d.getFullYear()===tahunAkhir) bln.I++; }
+      else if(st==='ALPHA')   { sem.A++; if(d.getMonth()===bulanAkhir&&d.getFullYear()===tahunAkhir) bln.A++; }
+      else if(st==='DISPENSASI'){ sem.D++; if(d.getMonth()===bulanAkhir&&d.getFullYear()===tahunAkhir) bln.D++; }
+      else if(st==='TERLAMBAT'){ sem.T++; if(d.getMonth()===bulanAkhir&&d.getFullYear()===tahunAkhir) bln.T++; }
+    });
+    return { ...item, rekap: sem, rekapBulan: bln };
+  });
+
+  return success(res, result);
 });
 
 module.exports = {
