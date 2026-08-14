@@ -603,83 +603,85 @@ export default function LaporanPage() {
     const schoolName  = sekolahInfo?.nama    || 'SMKN 1 Kras';
     const schoolAddr  = sekolahInfo?.alamat  || 'Jl. Raya Kras, Kediri, Jawa Timur';
     const schoolPhone = sekolahInfo?.telepon || '';
-    const psSize      = pageSize === 'F4' ? '215.9mm 330.2mm' : '210mm 297mm'; // portrait
+    // Landscape agar kolom tanggal muat banyak
+    const psSize      = pageSize === 'F4' ? '330.2mm 215.9mm' : '297mm 210mm';
     const today       = new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
     const signerName  = user?.nama || user?.username || '';
     const signerNip   = user?.nip  || '';
     const namaKelas   = kelasList?.find(k => k.id === kelasId)?.nama || '';
     const period      = `${tanggalMulai} s/d ${tanggalSelesai}`;
+    const tahunAwal   = new Date(tanggalMulai).getFullYear();
+    const tahunAkhir  = new Date(tanggalSelesai).getFullYear();
 
-    const siswaList = matriksData.siswa;   // [{siswa, absensi:[{tanggal,status},...]}]
-    const tanggalList = matriksData.tanggal; // ['2026-07-07','2026-07-08',...]
+    const siswaList   = matriksData.siswa;
+    const tanggalList = matriksData.tanggal;
 
-    // Warna per status
-    const STATUS_COLOR = {
-      HADIR:'#16a34a', SAKIT:'#f59e0b', IZIN:'#3b82f6',
-      ALPHA:'#dc2626', DISPENSASI:'#8b5cf6', TERLAMBAT:'#f97316',
-      PULANG_CEPAT:'#ec4899', DINAS:'#0891b2', LAINNYA:'#64748b',
-    };
-    const STATUS_LABEL = {
-      HADIR:'H', SAKIT:'S', IZIN:'I', ALPHA:'A',
-      DISPENSASI:'D', TERLAMBAT:'T', PULANG_CEPAT:'PC', DINAS:'DN', LAINNYA:'L',
-    };
-    const STATUS_BG = {
-      HADIR:'#dcfce7', SAKIT:'#fef9c3', IZIN:'#dbeafe',
-      ALPHA:'#fee2e2', DISPENSASI:'#ede9fe', TERLAMBAT:'#ffedd5',
-      PULANG_CEPAT:'#fce7f3', DINAS:'#cffafe', LAINNYA:'#f1f5f9',
-    };
-
-    // Format tanggal jadi dd/MM
-    const fmtTgl = (s) => {
-      const d = new Date(s);
-      return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
-    };
-    const fmtHari = (s) => {
-      const hari = ['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
-      return hari[new Date(s).getDay()];
+    // Status config
+    const ST = {
+      HADIR:       { lbl:'H',  bg:'',        color:'#16a34a' },
+      SAKIT:       { lbl:'S',  bg:'#fef9c3', color:'#b45309' },
+      IZIN:        { lbl:'I',  bg:'#dbeafe', color:'#1d4ed8' },
+      ALPHA:       { lbl:'A',  bg:'#fee2e2', color:'#dc2626' },
+      TERLAMBAT:   { lbl:'T',  bg:'#ffedd5', color:'#c2410c' },
+      DISPENSASI:  { lbl:'D',  bg:'#ede9fe', color:'#7c3aed' },
+      PULANG_CEPAT:{ lbl:'PC', bg:'#fce7f3', color:'#be185d' },
+      DINAS:       { lbl:'DN', bg:'#cffafe', color:'#0e7490' },
+      LAINNYA:     { lbl:'L',  bg:'#f1f5f9', color:'#475569' },
     };
 
-    // Header kolom tanggal — portrait: lebih sempit
-    const thTanggal = tanggalList.map(t =>
-      `<th style="width:14px;min-width:14px;max-width:14px;padding:1px 0;font-size:6px;background:#1e293b;color:#fff;border:0.5px solid #475569;text-align:center">
-        <div style="writing-mode:vertical-lr;transform:rotate(180deg);white-space:nowrap;font-size:6px">${fmtHari(t)}<br/>${fmtTgl(t)}</div>
-      </th>`
-    ).join('');
+    const fmtTgl  = s => { const d=new Date(s); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`; };
+    const fmtHari = s => ['Min','Sen','Sel','Rab','Kam','Jum','Sab'][new Date(s).getDay()];
 
-    // Baris data tiap siswa
+    // Header baris tanggal (2 baris: hari + tgl)
+    const thTgl = tanggalList.map(t => {
+      const isMinggu = new Date(t).getDay() === 0;
+      const bg = isMinggu ? '#334155' : '#1e293b';
+      return `<th style="width:16px;min-width:16px;padding:0;background:${bg};color:#fff;border:0.5px solid #475569;text-align:center;font-size:6px;font-weight:600">
+        <div style="writing-mode:vertical-lr;transform:rotate(180deg);padding:2px 0;line-height:1.1">${fmtHari(t)}<br/>${fmtTgl(t)}</div>
+      </th>`;
+    }).join('');
+
+    // Baris tiap siswa
     const rows = siswaList.map((item, idx) => {
-      // Buat map tanggal→status
       const map = {};
-      (item.absensi || []).forEach(a => {
-        const tgl = a.tanggal?.split('T')[0] || a.tanggal;
-        map[tgl] = a.status;
-      });
+      (item.absensi||[]).forEach(a => { map[a.tanggal?.split?.('T')[0]||a.tanggal] = a.status; });
 
-      // Hitung rekap
-      const counts = { H:0, S:0, I:0, A:0, D:0, T:0, PC:0, DN:0, L:0 };
-      Object.values(map).forEach(st => {
-        const lbl = STATUS_LABEL[st];
-        if (lbl) counts[lbl] = (counts[lbl]||0) + 1;
+      // Rekap
+      let cH=0,cS=0,cI=0,cA=0,cT=0,cD=0,cPC=0,cDN=0,cL=0;
+      Object.values(map).forEach(s => {
+        if(s==='HADIR') cH++;
+        else if(s==='SAKIT') cS++;
+        else if(s==='IZIN') cI++;
+        else if(s==='ALPHA') cA++;
+        else if(s==='TERLAMBAT') cT++;
+        else if(s==='DISPENSASI') cD++;
+        else if(s==='PULANG_CEPAT') cPC++;
+        else if(s==='DINAS') cDN++;
+        else if(s==='LAINNYA') cL++;
       });
-      const total = tanggalList.length;
 
       const cells = tanggalList.map(t => {
         const st = map[t];
-        if (!st || st === 'HADIR') {
-          return `<td style="width:14px;min-width:14px;max-width:14px;padding:1px 0;text-align:center;border:0.5px solid #e2e8f0;font-size:6px;background:${st==='HADIR'?'#dcfce7':'#fff'};color:${st==='HADIR'?'#16a34a':'#ccc'}">${st?'H':''}</td>`;
-        }
-        return `<td style="width:14px;min-width:14px;max-width:14px;padding:1px 0;text-align:center;border:0.5px solid #e2e8f0;font-size:6px;background:${STATUS_BG[st]||'#fff'};color:${STATUS_COLOR[st]||'#111'};font-weight:700">${STATUS_LABEL[st]||'-'}</td>`;
+        const cfg = st ? ST[st] : null;
+        // Hadir = hijau muda tipis, kosong = putih/abu, lainnya = warna penuh
+        if (!st)         return `<td style="width:16px;min-width:16px;padding:0;border:0.5px solid #e2e8f0;background:#f8fafc"></td>`;
+        if (st==='HADIR') return `<td style="width:16px;min-width:16px;padding:0;border:0.5px solid #e2e8f0;background:#dcfce7;text-align:center;font-size:6px;color:#16a34a"></td>`;
+        return `<td style="width:16px;min-width:16px;padding:0;border:0.5px solid #e2e8f0;background:${cfg?.bg||'#fff'};text-align:center;font-size:6px;color:${cfg?.color||'#111'};font-weight:700">${cfg?.lbl||'-'}</td>`;
       }).join('');
 
-      const stripe = idx%2===1 ? 'background:#f8fafc' : '';
-      return `<tr style="${stripe}">
-        <td style="width:20px;text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:1px 2px">${idx+1}</td>
-        <td style="border:0.5px solid #e2e8f0;font-size:7px;padding:1px 3px;white-space:nowrap;font-weight:600">${item.siswa?.nama||'-'}</td>
-        <td style="width:18px;text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:1px 2px;color:#16a34a;font-weight:700">${counts.H||''}</td>
-        <td style="width:18px;text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:1px 2px;color:#f59e0b;font-weight:700">${counts.S||''}</td>
-        <td style="width:18px;text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:1px 2px;color:#3b82f6;font-weight:700">${counts.I||''}</td>
-        <td style="width:18px;text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:1px 2px;color:#dc2626;font-weight:700">${counts.A||''}</td>
-        <td style="width:18px;text-align:center;border:0.5px solid #e2e8f0;font-size:7px;padding:1px 2px;color:#f97316;font-weight:700">${counts.T||''}</td>
+      const stripe = idx%2===1 ? '#f8fafc' : '#fff';
+      const rekap = [
+        `<td style="width:16px;text-align:center;border:0.5px solid #e2e8f0;background:${stripe};font-size:7px;color:#16a34a;font-weight:700;padding:1px">${cH||''}</td>`,
+        `<td style="width:16px;text-align:center;border:0.5px solid #e2e8f0;background:${cS?'#fef9c3':stripe};font-size:7px;color:#b45309;font-weight:700;padding:1px">${cS||''}</td>`,
+        `<td style="width:16px;text-align:center;border:0.5px solid #e2e8f0;background:${cI?'#dbeafe':stripe};font-size:7px;color:#1d4ed8;font-weight:700;padding:1px">${cI||''}</td>`,
+        `<td style="width:16px;text-align:center;border:0.5px solid #e2e8f0;background:${cA?'#fee2e2':stripe};font-size:7px;color:#dc2626;font-weight:700;padding:1px">${cA||''}</td>`,
+        `<td style="width:16px;text-align:center;border:0.5px solid #e2e8f0;background:${cT?'#ffedd5':stripe};font-size:7px;color:#c2410c;font-weight:700;padding:1px">${cT||''}</td>`,
+      ].join('');
+
+      return `<tr>
+        <td style="padding:1px 2px;border:0.5px solid #e2e8f0;text-align:center;background:${stripe};font-size:7px;white-space:nowrap">${idx+1}</td>
+        <td style="padding:1px 4px;border:0.5px solid #e2e8f0;background:${stripe};font-size:7.5px;font-weight:600;white-space:nowrap">${item.siswa?.nama||'-'}</td>
+        ${rekap}
         ${cells}
       </tr>`;
     }).join('');
@@ -688,47 +690,44 @@ export default function LaporanPage() {
     <meta charset="utf-8"/>
     <title>Rekap Presensi Matriks - ${namaKelas}</title>
     <style>
-      @page { size: ${psSize}; margin: 10mm 8mm 12mm; }
-      * { box-sizing:border-box; margin:0; padding:0; }
-      body { font-family:Arial,sans-serif; font-size:8px; color:#111; }
-      .kop { text-align:center; border-bottom:2.5px solid #1e293b; padding-bottom:5px; margin-bottom:5px; }
-      .kop-nama { font-size:12px; font-weight:800; }
-      .kop-sub  { font-size:7.5px; color:#555; margin-top:2px; }
-      .judul    { font-size:10px; font-weight:700; text-align:center; margin:4px 0 2px; text-transform:uppercase; }
-      .period   { font-size:7.5px; text-align:center; color:#555; margin-bottom:5px; }
-      table { border-collapse:collapse; width:100%; }
-      .legend { font-size:7px; color:#555; margin-top:5px; }
-      .ttd  { display:flex; justify-content:flex-end; margin-top:12px; }
-      .ttd-box { text-align:center; min-width:160px; line-height:1.8; font-size:8px; }
-      .ttd-name { font-weight:700; }
-      @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
+      @page { size:${psSize}; margin:8mm 7mm 10mm; }
+      *{ box-sizing:border-box; margin:0; padding:0; }
+      body{ font-family:Arial,sans-serif; font-size:8px; color:#111; }
+      .kop{ text-align:center; border-bottom:2px solid #1e293b; padding-bottom:4px; margin-bottom:4px; }
+      .kop-nama{ font-size:13px; font-weight:800; letter-spacing:.3px; }
+      .kop-sub{ font-size:7.5px; color:#555; margin-top:1px; }
+      .judul{ font-size:10px; font-weight:700; text-align:center; margin:4px 0 1px; text-transform:uppercase; }
+      .period{ font-size:7.5px; text-align:center; color:#555; margin-bottom:5px; }
+      table{ border-collapse:collapse; width:100%; table-layout:fixed; }
+      .legend{ font-size:7px; color:#555; margin-top:4px; }
+      .ttd{ display:flex; justify-content:flex-end; margin-top:10px; }
+      .ttd-box{ text-align:center; min-width:150px; line-height:1.8; font-size:8px; }
+      .ttd-name{ font-weight:700; }
+      @media print{ body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
     </style></head><body>
     <div class="kop">
       <div class="kop-nama">${schoolName}</div>
       <div class="kop-sub">${schoolAddr}${schoolPhone?' • Telp. '+schoolPhone:''}</div>
     </div>
-    <div class="judul">Rekap Presensi TA. ${new Date(tanggalMulai).getFullYear()}–${new Date(tanggalSelesai).getFullYear()}</div>
-    <div class="period">Kelas: ${namaKelas} &nbsp;|&nbsp; Periode: ${period}</div>
-
+    <div class="judul">Rekap Presensi TA. ${tahunAwal}–${tahunAkhir}</div>
+    <div class="period">Kelas: <strong>${namaKelas}</strong> &nbsp;|&nbsp; Periode: ${period}</div>
     <table>
       <thead>
         <tr>
-          <th style="width:20px;background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">No</th>
+          <th style="width:22px;background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">No</th>
           <th style="background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 4px;text-align:left">Nama Siswa</th>
-          <th style="width:18px;background:#16a34a;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">H</th>
-          <th style="width:18px;background:#f59e0b;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">S</th>
-          <th style="width:18px;background:#3b82f6;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">I</th>
-          <th style="width:18px;background:#dc2626;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">A</th>
-          <th style="width:18px;background:#f97316;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">T</th>
-          ${thTanggal}
+          <th style="width:16px;background:#16a34a;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">H</th>
+          <th style="width:16px;background:#fbbf24;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">S</th>
+          <th style="width:16px;background:#3b82f6;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">I</th>
+          <th style="width:16px;background:#dc2626;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">A</th>
+          <th style="width:16px;background:#f97316;color:#fff;border:0.5px solid #475569;font-size:7px;padding:2px 1px">T</th>
+          ${thTgl}
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
-
-    <p class="legend">Ket: H=Hadir · S=Sakit · I=Izin · A=Alpha · T=Terlambat · D=Dispensasi · PC=Pulang Cepat · DN=Dinas · L=Lainnya</p>
-    <p class="legend" style="margin-top:2px">Dicetak: ${new Date().toLocaleString('id-ID')} | Total: ${siswaList.length} siswa | ${tanggalList.length} hari</p>
-
+    <p class="legend">Ket: H=Hadir &nbsp;S=Sakit &nbsp;I=Izin &nbsp;A=Alpha &nbsp;T=Terlambat &nbsp;D=Dispensasi &nbsp;PC=Pulang Cepat &nbsp;DN=Dinas &nbsp;L=Lainnya</p>
+    <p class="legend">Dicetak: ${new Date().toLocaleString('id-ID')} &nbsp;|&nbsp; Total: ${siswaList.length} siswa &nbsp;|&nbsp; ${tanggalList.length} hari</p>
     <div class="ttd"><div class="ttd-box">
       Kras, ${today}<br/>Wali Kelas,<br/><br/><br/>
       <div class="ttd-name">${signerName||'___________________________'}</div>
