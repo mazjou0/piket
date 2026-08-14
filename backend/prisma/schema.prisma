@@ -1,0 +1,590 @@
+// SIPAKAR - Prisma Schema
+// PostgreSQL + Full Relations + Indexes
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  PETUGAS_PIKET
+  BK
+  WALI_KELAS
+  GURU
+  KEPALA_SEKOLAH
+}
+
+enum JenisKelamin {
+  L
+  P
+}
+
+enum StatusSiswa {
+  AKTIF
+  LULUS
+  PINDAH
+  DIKELUARKAN
+  MENINGGAL
+}
+
+enum StatusAbsensi {
+  HADIR
+  SAKIT
+  IZIN
+  ALPHA
+  DISPENSASI
+  TERLAMBAT
+  PULANG_CEPAT
+  DINAS
+  LAINNYA
+}
+
+enum StatusPeringatan {
+  NORMAL
+  WARNING
+  SP1
+  SP2
+  PANGGILAN_ORTU
+  REKOMENDASI_BK
+}
+
+enum JenisSesi {
+  PAGI
+  SIANG
+}
+
+enum TipeLaporan {
+  HARIAN
+  MINGGUAN
+  BULANAN
+  SEMESTER
+  TAHUNAN
+}
+
+enum StatusSurat {
+  DRAFT
+  TERBIT
+  TERKIRIM
+}
+
+// ============================================================
+// MASTER DATA
+// ============================================================
+
+model TahunAjaran {
+  id        String   @id @default(uuid())
+  nama      String   @unique // e.g. "2024/2025"
+  aktif     Boolean  @default(false)
+  mulai     DateTime
+  selesai   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  semester  Semester[]
+  kelas     Kelas[]
+
+  @@map("tahun_ajaran")
+}
+
+model Semester {
+  id            String      @id @default(uuid())
+  tahunAjaranId String
+  nama          String      // "Ganjil" / "Genap"
+  urutan        Int         // 1 / 2
+  aktif         Boolean     @default(false)
+  mulai         DateTime
+  selesai       DateTime
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  tahunAjaran   TahunAjaran @relation(fields: [tahunAjaranId], references: [id])
+  absensi       Absensi[]
+  laporan       Laporan[]
+
+  @@unique([tahunAjaranId, urutan])
+  @@map("semester")
+}
+
+model Jurusan {
+  id        String   @id @default(uuid())
+  kode      String   @unique
+  nama      String
+  singkatan String
+  aktif     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  kelas     Kelas[]
+  siswa     Siswa[]
+
+  @@map("jurusan")
+}
+
+model Kelas {
+  id            String      @id @default(uuid())
+  nama          String      // "X RPL 1"
+  tingkat       Int         // 10, 11, 12
+  jurusanId     String
+  tahunAjaranId String
+  waliKelasId   String?
+  kapasitas     Int         @default(36)
+  aktif         Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  jurusan       Jurusan     @relation(fields: [jurusanId], references: [id])
+  tahunAjaran   TahunAjaran @relation(fields: [tahunAjaranId], references: [id])
+  waliKelas     Guru?       @relation("WaliKelas", fields: [waliKelasId], references: [id])
+
+  siswaKelas    SiswaKelas[]
+  absensi       Absensi[]
+  pelanggaran   Pelanggaran[]
+
+  @@unique([nama, tahunAjaranId])
+  @@index([jurusanId])
+  @@index([tahunAjaranId])
+  @@map("kelas")
+}
+
+model Guru {
+  id           String       @id @default(uuid())
+  sdmsId       String?      @unique @map("sdms_id")   // ? tambahkan ini
+  nip          String?      @unique
+  nama         String
+  jenisKelamin JenisKelamin
+  email        String?      @unique
+  telepon      String?
+  alamat       String?
+  foto         String?
+  aktif        Boolean      @default(true)
+  userId       String?      @unique
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  user         User?        @relation(fields: [userId], references: [id])
+  kelasWali    Kelas[]      @relation("WaliKelas")
+  absensiDibuat Absensi[]   @relation("AbsensiOlehGuru")
+
+  @@index([nama])
+  @@map("guru")
+}
+
+model Siswa {
+  id             String       @id @default(uuid())
+  sdmsId         String?      @unique @map("sdms_id")  // ? tambahkan ini
+  nis            String       @unique
+  nisn           String?      @unique
+  nama           String
+  jenisKelamin   JenisKelamin
+  tempatLahir    String?
+  tanggalLahir   DateTime?
+  agama          String?
+  alamat         String?
+  telepon        String?
+  namaOrtu       String?
+  teleponOrtu    String?
+  emailOrtu      String?
+  foto           String?
+  status         StatusSiswa  @default(AKTIF)
+  jurusanId      String
+  angkatan       Int          // tahun masuk, e.g. 2022
+  tanggalMasuk   DateTime?
+  tanggalKeluar  DateTime?
+  keteranganKeluar String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  jurusan        Jurusan      @relation(fields: [jurusanId], references: [id])
+  kelasHistori   SiswaKelas[]
+  absensi        Absensi[]
+  pelanggaran    Pelanggaran[]
+  akumulasiPoin  AkumulasiPoin?
+  surat          Surat[]
+  qrToken        QRToken[]
+
+  @@index([nis])
+  @@index([nisn])
+  @@index([nama])
+  @@index([status])
+  @@index([angkatan])
+  @@map("siswa")
+}
+
+model SiswaKelas {
+  id        String   @id @default(uuid())
+  sdmsId    String?  @unique @map("sdms_id")   // ? tambahkan ini
+  siswaId   String
+  kelasId   String
+  mulai     DateTime
+  selesai   DateTime?
+  aktif     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  siswa     Siswa    @relation(fields: [siswaId], references: [id])
+  kelas     Kelas    @relation(fields: [kelasId], references: [id])
+
+  @@unique([siswaId, kelasId])
+  @@index([siswaId])
+  @@index([kelasId])
+  @@map("siswa_kelas")
+}
+
+// ============================================================
+// USER & AUTH
+// ============================================================
+
+model User {
+  id           String    @id @default(uuid())
+  username     String    @unique
+  email        String    @unique
+  password     String
+  role         Role      @default(PETUGAS_PIKET)
+  roles        Role[]    @default([])
+  aktif        Boolean   @default(true)
+  lastLogin    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  guru         Guru?
+  refreshTokens RefreshToken[]
+  auditLog     AuditLog[]
+
+  @@index([username])
+  @@index([email])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revoked   Boolean  @default(false)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ============================================================
+// KEHADIRAN / ABSENSI
+// ============================================================
+
+model JenisKehadiran {
+  id          String   @id @default(uuid())
+  kode        String   @unique
+  nama        String
+  deskripsi   String?
+  warna       String   @default("#3B82F6")
+  aktif       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("jenis_kehadiran")
+}
+
+model Absensi {
+  id            String        @id @default(uuid())
+  siswaId       String
+  kelasId       String
+  semesterId    String
+  tanggal       DateTime      @db.Date
+  status        StatusAbsensi @default(HADIR)
+  sesi          JenisSesi     @default(PAGI)
+  keterangan    String?
+  lampiranUrl   String?       // path to uploaded file
+  menit         Int?          // untuk terlambat/pulang cepat
+  createdById   String?       // petugas piket / guru
+  updatedById   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  siswa         Siswa         @relation(fields: [siswaId], references: [id])
+  kelas         Kelas         @relation(fields: [kelasId], references: [id])
+  semester      Semester      @relation(fields: [semesterId], references: [id])
+  createdBy     Guru?         @relation("AbsensiOlehGuru", fields: [createdById], references: [id])
+
+  @@unique([siswaId, tanggal, sesi])
+  @@index([siswaId])
+  @@index([kelasId])
+  @@index([tanggal])
+  @@index([status])
+  @@index([semesterId])
+  @@index([kelasId, tanggal])        // rekap harian & laporan per kelas
+  @@index([kelasId, tanggal, sesi])  // input absensi utama
+  @@index([siswaId, tanggal])        // riwayat siswa
+  @@map("absensi")
+}
+
+// ============================================================
+// PELANGGARAN
+// ============================================================
+
+model JenisPelanggaran {
+  id          String   @id @default(uuid())
+  kode        String   @unique
+  nama        String
+  deskripsi   String?
+  poin        Int      @default(5)
+  kategori    String?  // "ringan", "sedang", "berat"
+  aktif       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pelanggaran Pelanggaran[]
+
+  @@map("jenis_pelanggaran")
+}
+
+model Pelanggaran {
+  id                 String           @id @default(uuid())
+  siswaId            String
+  kelasId            String
+  jenisPelanggaranId String
+  tanggal            DateTime         @db.Date
+  poin               Int
+  keterangan         String?
+  lampiranUrl        String?
+  ditanganiOleh      String?          // BK / wali kelas
+  tindakan           String?
+  createdById        String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  siswa              Siswa            @relation(fields: [siswaId], references: [id])
+  kelas              Kelas            @relation(fields: [kelasId], references: [id])
+  jenisPelanggaran   JenisPelanggaran @relation(fields: [jenisPelanggaranId], references: [id])
+
+  @@index([siswaId])
+  @@index([kelasId])
+  @@index([tanggal])
+  @@map("pelanggaran")
+}
+
+model AkumulasiPoin {
+  id               String           @id @default(uuid())
+  siswaId          String           @unique
+  totalPoin        Int              @default(0)
+  statusPeringatan StatusPeringatan @default(NORMAL)
+  updatedAt        DateTime         @updatedAt
+
+  siswa            Siswa            @relation(fields: [siswaId], references: [id])
+
+  @@map("akumulasi_poin")
+}
+
+// ============================================================
+// SURAT OTOMATIS
+// ============================================================
+
+model Surat {
+  id           String      @id @default(uuid())
+  siswaId      String
+  jenis        String      // "SP1", "SP2", "SP3", "PANGGILAN_ORTU"
+  nomor        String      @unique
+  tanggal      DateTime    @db.Date
+  perihal      String
+  isi          String?     @db.Text
+  status       StatusSurat @default(DRAFT)
+  totalPoin    Int
+  fileUrl      String?
+  diterbitkanOleh String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  siswa        Siswa       @relation(fields: [siswaId], references: [id])
+
+  @@index([siswaId])
+  @@index([tanggal])
+  @@map("surat")
+}
+
+// ============================================================
+// QR CODE ABSENSI
+// ============================================================
+
+model QRToken {
+  id        String   @id @default(uuid())
+  siswaId   String
+  token     String   @unique
+  eventId   String?
+  used      Boolean  @default(false)
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  siswa     Siswa    @relation(fields: [siswaId], references: [id])
+  event     EventSekolah? @relation(fields: [eventId], references: [id])
+
+  @@index([token])
+  @@map("qr_tokens")
+}
+
+model EventSekolah {
+  id          String   @id @default(uuid())
+  nama        String
+  tanggal     DateTime @db.Date
+  deskripsi   String?
+  lokasi      String?
+  aktif       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  qrTokens    QRToken[]
+
+  @@map("event_sekolah")
+}
+
+// ============================================================
+// KALENDER AKADEMIK & HARI LIBUR
+// ============================================================
+
+model HariLibur {
+  id          String   @id @default(uuid())
+  tanggal     DateTime @db.Date
+  nama        String
+  jenis       String   @default("nasional") // "nasional", "sekolah"
+  keterangan  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tanggal, nama])
+  @@index([tanggal])
+  @@map("hari_libur")
+}
+
+model KalenderAkademik {
+  id          String   @id @default(uuid())
+  judul       String
+  tanggalMulai DateTime @db.Date
+  tanggalSelesai DateTime? @db.Date
+  warna       String   @default("#3B82F6")
+  jenis       String   @default("kegiatan") // "kegiatan", "ujian", "libur", "lainnya"
+  keterangan  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tanggalMulai])
+  @@map("kalender_akademik")
+}
+
+// ============================================================
+// LAPORAN
+// ============================================================
+
+model Laporan {
+  id          String      @id @default(uuid())
+  jenis       TipeLaporan
+  semesterId  String?
+  kelasId     String?
+  jurusanId   String?
+  tanggalMulai DateTime
+  tanggalSelesai DateTime
+  judul       String
+  fileUrl     String?
+  parameter   Json?
+  dibuatOleh  String?
+  createdAt   DateTime    @default(now())
+
+  semester    Semester?   @relation(fields: [semesterId], references: [id])
+
+  @@index([jenis])
+  @@index([createdAt])
+  @@map("laporan")
+}
+
+// ============================================================
+// NOTIFIKASI
+// ============================================================
+
+model Notifikasi {
+  id        String   @id @default(uuid())
+  judul     String
+  pesan     String   @db.Text
+  tipe      String   @default("info") // "info", "warning", "danger"
+  targetId  String?  // siswaId or userId
+  targetType String? // "siswa", "user"
+  dibaca    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([targetId])
+  @@index([dibaca])
+  @@map("notifikasi")
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  aksi       String
+  tabel      String
+  dataId     String?
+  dataBefore Json?
+  dataAfter  Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([tabel])
+  @@index([createdAt])
+  @@map("audit_log")
+}
+
+// ============================================================
+// PETUGAS PIKET
+// ============================================================
+
+model PetugasPiket {
+  id        String   @id @default(uuid())
+  guruId    String
+  hari      Int      // 1=Senin...7=Minggu
+  aktif     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guruId, hari])
+  @@map("petugas_piket")
+}
+
+// ============================================================
+// REKAP VIEWS (stored as materialized data)
+// ============================================================
+
+model RekapAbsensiHarian {
+  id          String   @id @default(uuid())
+  tanggal     DateTime @db.Date
+  kelasId     String
+  hadir       Int      @default(0)
+  sakit       Int      @default(0)
+  izin        Int      @default(0)
+  alpha       Int      @default(0)
+  dispensasi  Int      @default(0)
+  terlambat   Int      @default(0)
+  pulangCepat Int      @default(0)
+  dinas       Int      @default(0)
+  total       Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tanggal, kelasId])
+  @@index([tanggal])
+  @@map("rekap_absensi_harian")
+}

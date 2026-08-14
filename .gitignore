@@ -1,0 +1,16 @@
+node_modules/
+.env
+.env.local
+.env.*.local
+dist/
+build/
+*.log
+.DS_Store
+Thumbs.db
+coverage/
+.nyc_output/
+uploads/
+*.pem
+*.key
+*.cert
+.prisma/
