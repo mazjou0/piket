@@ -178,7 +178,7 @@ export default function App() {
 
           {/* ── Pelanggaran — GURU hanya bisa lihat Data Pelanggaran ── */}
           <Route path="/pelanggaran"           element={<PelanggaranPage />} />
-          <Route path="/pelanggaran/akumulasi" element={<ProtectedRoute roles={MASTER_EDITORS}><PelanggaranAkumulasiPage /></ProtectedRoute>} />
+          <Route path="/pelanggaran/akumulasi" element={<ProtectedRoute roles={[...MASTER_EDITORS, 'PETUGAS_PIKET', 'GURU']}><PelanggaranAkumulasiPage /></ProtectedRoute>} />
 
           {/* ── Surat & BK — GURU tidak boleh akses ── */}
           <Route path="/surat" element={<ProtectedRoute roles={MASTER_EDITORS}><SuratPage /></ProtectedRoute>} />
