@@ -533,7 +533,7 @@ const getRekapTidakHadir = asyncHandler(async (req, res) => {
 
   const where = {
     tanggal: { gte: tglMulai, lte: tglAkhir },
-    status: { not: 'HADIR' },
+    status: { notIn: ['HADIR', 'DINAS'] },
   };
   if (kelasId) where.kelasId = kelasId;
 
