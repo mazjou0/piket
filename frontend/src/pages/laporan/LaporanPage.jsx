@@ -927,7 +927,7 @@ export default function LaporanPage() {
           </div>
 
           {/* Export PDF — client-side print */}
-          {reportType !== 'matriks' && (
+          {reportType !== 'matriks' && reportType !== 'tidak-hadir' && (
             <button onClick={handlePrint} className="btn btn-danger" style={{ gap:6 }}>
               <FileText style={{ width:15, height:15 }} /> Export PDF
             </button>
@@ -944,7 +944,7 @@ export default function LaporanPage() {
           )}
 
           {/* Export Excel — server-side */}
-          {reportType !== 'matriks' && (
+          {reportType !== 'matriks' && reportType !== 'tidak-hadir' && (
             <button onClick={() => handleExport('excel')} disabled={!!exporting} className="btn btn-success" style={{ gap:6 }}>
               <FileSpreadsheet style={{ width:15, height:15 }} />
               {exporting === 'excel' ? 'Mengekspor...' : 'Export Excel'}
@@ -952,7 +952,7 @@ export default function LaporanPage() {
           )}
 
           {/* Export CSV */}
-          {reportType !== 'matriks' && (
+          {reportType !== 'matriks' && reportType !== 'tidak-hadir' && (
             <button onClick={() => handleExport('csv')} disabled={!!exporting} className="btn btn-secondary" style={{ gap:6 }}>
               <FileDown style={{ width:15, height:15 }} />
               {exporting === 'csv' ? 'Mengekspor...' : 'CSV'}
