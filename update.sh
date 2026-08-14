@@ -23,21 +23,21 @@ git pull origin "$BRANCH"
 echo -e "${GREEN}  Pull selesai${NC}"
 
 # 2. Install/update backend dependencies
-echo -e "\n${YELLOW}[2/5] Update backend dependencies...${NC}"
-cd "$ROOT/backend"
-npm install --omit=dev
-echo -e "${GREEN}  Backend deps OK${NC}"
+echo -e "\n${YELLOW}[2/5] Install semua dependencies (root workspace)...${NC}"
+cd "$ROOT"
+npm install
+echo -e "${GREEN}  Dependencies OK${NC}"
 
 # 3. Prisma generate + migrate
 echo -e "\n${YELLOW}[3/5] Prisma generate & migrate...${NC}"
+cd "$ROOT/backend"
 npx prisma generate
 npx prisma migrate deploy
 echo -e "${GREEN}  Database OK${NC}"
 
 # 4. Build frontend
 echo -e "\n${YELLOW}[4/5] Build frontend...${NC}"
-cd "$ROOT/frontend"
-npm install          # install semua termasuk devDependencies (vite, dll)
+cd "$ROOT"
 npm run build
 echo -e "${GREEN}  Frontend build selesai${NC}"
 
