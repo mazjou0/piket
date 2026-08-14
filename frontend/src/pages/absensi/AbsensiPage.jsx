@@ -130,34 +130,29 @@ function CariSiswaPanel({ tanggal, sesi, semesterId, query, setQuery, kelasId, o
               </div>
             </div>
 
-            {/* Baris bawah: grid tombol status — lebih besar untuk sentuh */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(5, 1fr)',
-              gap: 6,
-            }}>
+            {/* Baris bawah: tombol status — satu baris kecil */}
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {STATUS_OPTIONS.map(s => {
                 const isActive = sudah && currentStatus === s.value;
                 return (
                   <button key={s.value} onClick={() => handleSimpan(item, s.value)}
                     disabled={isSaving}
                     style={{
-                      padding: '8px 4px',
-                      borderRadius: 8, fontSize: 11, fontWeight: 700,
+                      minWidth: 32, height: 32, padding: '0 6px',
+                      borderRadius: 6, fontSize: 11, fontWeight: 700,
                       border: `1.5px solid ${isActive ? s.bg : 'var(--color-border)'}`,
-                      background: isActive ? s.bgLight : 'var(--color-surface-hover)',
+                      background: isActive ? s.bgLight : 'transparent',
                       color: isActive ? s.color : sudah ? 'var(--color-muted)' : 'rgba(148,163,184,0.5)',
                       cursor: isSaving ? 'wait' : 'pointer',
                       transition: 'all 0.15s',
                       outline: isActive ? `2px solid ${s.bg}` : 'none',
                       outlineOffset: 1,
                       opacity: sudah ? 1 : 0.5,
-                      display: 'flex', flexDirection: 'column',
-                      alignItems: 'center', justifyContent: 'center', gap: 1,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
                     }}
                   >
-                    <span style={{ fontSize: 12 }}>{isSaving && isActive ? '…' : s.label}</span>
-                    <span style={{ fontSize: 8, opacity: 0.7, fontWeight: 400 }}>{s.title}</span>
+                    {isSaving && isActive ? '…' : s.label}
                   </button>
                 );
               })}
@@ -477,59 +472,57 @@ export default function AbsensiPage() {
                       current.status === 'SAKIT'     ? 'rgba(234,179,8,0.15)' :
                       current.status === 'TERLAMBAT' ? 'rgba(249,115,22,0.15)' : 'var(--color-border)';
                     return (
-                      <div key={siswa.id} style={{ padding: '10px 12px', borderRadius: 12, border: `1px solid ${rowBorder}`, background: rowBg, transition: 'background 0.1s', marginBottom: 4 }}>
-                        {/* Baris atas: nomor + avatar + nama */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                          <span style={{ fontSize: 11, color: 'var(--color-muted)', width: 22, textAlign: 'center', flexShrink: 0 }}>{idx + 1}</span>
-                          <div style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, background: si?.bgLight || 'var(--color-surface-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: si?.color || 'var(--color-muted)' }}>
+                      <div key={siswa.id} style={{ padding: '8px 10px', borderRadius: 10, border: `1px solid ${rowBorder}`, background: rowBg, transition: 'background 0.1s', marginBottom: 3 }}>
+                        {/* Satu baris: nomor + avatar + nama + tombol */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 11, color: 'var(--color-muted)', width: 20, textAlign: 'center', flexShrink: 0 }}>{idx + 1}</span>
+                          <div style={{ width: 30, height: 30, borderRadius: 7, flexShrink: 0, background: si?.bgLight || 'var(--color-surface-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: si?.color || 'var(--color-muted)' }}>
                             {siswa.nama?.charAt(0)?.toUpperCase()}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--color-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{siswa.nama}</p>
-                            <p style={{ margin: 0, fontSize: 11, fontFamily: 'monospace', color: sudah ? 'var(--color-muted)' : '#f97316' }}>
+                            <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: 'var(--color-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{siswa.nama}</p>
+                            <p style={{ margin: 0, fontSize: 10, fontFamily: 'monospace', color: 'var(--color-muted)' }}>
                               {siswa.nis}
-                              {!sudah && <span style={{ marginLeft: 6, fontWeight: 600 }}>· belum diabsen</span>}
-                              {sudah && si && <span style={{ marginLeft: 6, fontWeight: 700, color: si.color }}>✓ {STATUS_MAP[current.status]?.title}</span>}
+                              {!sudah && <span style={{ marginLeft: 5, color: '#f97316', fontWeight: 600 }}>· belum</span>}
+                              {sudah && si && <span style={{ marginLeft: 5, fontWeight: 700, color: si.color }}>✓ {si.title}</span>}
                             </p>
                           </div>
-                          {/* Tombol hapus */}
-                          {sudah && current.absensiId && canDelete && (
-                            <button onClick={() => handleHapusAbsensi(siswa.id, current.absensiId)} title="Hapus absensi"
-                              style={{ width: 28, height: 28, borderRadius: 6, fontSize: 14, fontWeight: 700, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.08)', color: '#ef4444', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              ×
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Grid tombol status — 5 kolom, mudah disentuh di mobile */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 5 }}>
-                          {STATUS_OPTIONS.map(s => {
-                            const isActive = sudah && current.status === s.value;
-                            return (
-                              <button key={s.value} onClick={() => handleStatusChange(siswa.id, s.value)} title={s.title}
-                                style={{
-                                  padding: '7px 4px', borderRadius: 8, fontSize: 11, fontWeight: 700,
-                                  border: `1.5px solid ${isActive ? s.bg : 'var(--color-border)'}`,
-                                  background: isActive ? s.bgLight : 'var(--color-surface-hover)',
-                                  color: isActive ? s.color : sudah ? 'var(--color-muted)' : 'rgba(148,163,184,0.4)',
-                                  cursor: 'pointer', transition: 'all 0.1s',
-                                  outline: isActive ? `2px solid ${s.bg}` : 'none', outlineOffset: 1,
-                                  opacity: sudah ? 1 : 0.45,
-                                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
-                                }}>
-                                <span>{s.label}</span>
-                                <span style={{ fontSize: 8, fontWeight: 400, opacity: 0.7 }}>{s.title}</span>
+                          {/* Tombol status — kecil, satu baris */}
+                          <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                            {STATUS_OPTIONS.map(s => {
+                              const isActive = sudah && current.status === s.value;
+                              return (
+                                <button key={s.value} onClick={() => handleStatusChange(siswa.id, s.value)} title={s.title}
+                                  style={{
+                                    minWidth: 28, height: 28, padding: '0 5px',
+                                    borderRadius: 5, fontSize: 10, fontWeight: 700,
+                                    border: `1.5px solid ${isActive ? s.bg : 'var(--color-border)'}`,
+                                    background: isActive ? s.bgLight : 'transparent',
+                                    color: isActive ? s.color : sudah ? 'var(--color-muted)' : 'rgba(148,163,184,0.4)',
+                                    cursor: 'pointer', transition: 'all 0.1s',
+                                    outline: isActive ? `2px solid ${s.bg}` : 'none', outlineOffset: 1,
+                                    opacity: sudah ? 1 : 0.45,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  }}>
+                                  {s.label}
+                                </button>
+                              );
+                            })}
+                            {/* Tombol hapus */}
+                            {sudah && current.absensiId && canDelete && (
+                              <button onClick={() => handleHapusAbsensi(siswa.id, current.absensiId)} title="Hapus absensi"
+                                style={{ width: 28, height: 28, borderRadius: 5, fontSize: 13, fontWeight: 700, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.08)', color: '#ef4444', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                ×
                               </button>
-                            );
-                          })}
+                            )}
+                          </div>
                         </div>
-
-                        {/* Input menit/keterangan */}
+                        {/* Input menit/keterangan — di bawah jika perlu */}
                         {sudah && (current.status === 'TERLAMBAT' || current.status === 'PULANG_CEPAT') && (
-                          <input type="number" placeholder="menit" value={current.menit || ''} onChange={e => handleFieldChange(siswa.id, 'menit', e.target.value)} className="input" style={{ marginTop: 6, width: '100%', fontSize: 12, padding: '6px 10px' }} />
+                          <input type="number" placeholder="menit" value={current.menit || ''} onChange={e => handleFieldChange(siswa.id, 'menit', e.target.value)} className="input" style={{ marginTop: 5, width: '100%', fontSize: 12, padding: '5px 8px' }} />
                         )}
                         {sudah && ['SAKIT','IZIN','DISPENSASI','LAINNYA'].includes(current.status) && (
-                          <input placeholder="keterangan" value={current.keterangan || ''} onChange={e => handleFieldChange(siswa.id, 'keterangan', e.target.value)} className="input" style={{ marginTop: 6, width: '100%', fontSize: 12, padding: '6px 10px' }} />
+                          <input placeholder="keterangan" value={current.keterangan || ''} onChange={e => handleFieldChange(siswa.id, 'keterangan', e.target.value)} className="input" style={{ marginTop: 5, width: '100%', fontSize: 12, padding: '5px 8px' }} />
                         )}
                       </div>
                     );
