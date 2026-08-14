@@ -12,6 +12,7 @@ const REPORT_TYPES = [
   { key: 'absensi-kelas',  label: 'Absensi per Kelas',        exportType: 'rekap-kelas' },
   { key: 'pelanggaran',    label: 'Rekapitulasi Pelanggaran',  exportType: 'pelanggaran' },
   { key: 'matriks',        label: 'Rekap Presensi Matriks',   exportType: null          },
+  { key: 'tidak-hadir',    label: 'Rekap Tidak Hadir',        exportType: null          },
 ];
 
 const PAGE_SIZES = [
@@ -71,11 +72,19 @@ export default function LaporanPage() {
     enabled: reportType === 'matriks' && !!tanggalMulai && !!tanggalSelesai && !!kelasId,
   });
 
+  // Query rekap tidak hadir semua kelas — S/I/A/D per tanggal
+  const { data: tidakHadirData, isLoading: l5 } = useQuery({
+    queryKey: ['rekap-tidak-hadir', params],
+    queryFn: () => api.get('/laporan/rekap-tidak-hadir', { params }).then(r => r.data.data),
+    enabled: reportType === 'tidak-hadir' && !!tanggalMulai && !!tanggalSelesai,
+  });
+
   const currentData = reportType === 'absensi-siswa' ? rekapAbsensi
                     : reportType === 'absensi-kelas' ? rekapKelas
                     : reportType === 'matriks'       ? matriksData
+                    : reportType === 'tidak-hadir'   ? tidakHadirData
                     : rekapPelanggaran;
-  const isLoading   = l1 || l2 || l3 || l4;
+  const isLoading   = l1 || l2 || l3 || l4 || l5;
 
   // Filter absensi per siswa berdasarkan nama / NIS / NISN
   const filteredAbsensi = rekapAbsensi?.filter(r => {
@@ -791,6 +800,89 @@ export default function LaporanPage() {
     w.onload = () => { w.focus(); w.print(); };
   };
 
+  // ── Print Rekap Tidak Hadir ──────────────────────────────
+  const handlePrintTidakHadir = () => {
+    if (!tidakHadirData?.length) { toast.error('Tidak ada data tidak hadir'); return; }
+    const schoolName = sekolahInfo?.nama    || 'SMKN 1 Kras';
+    const schoolAddr = sekolahInfo?.alamat  || 'Jl. Raya Kras, Kediri, Jawa Timur';
+    const schoolPhone= sekolahInfo?.telepon || '';
+    const psSize     = pageSize === 'F4' ? '215.9mm 330.2mm' : '210mm 297mm';
+    const today      = new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
+    const signerName = user?.nama || user?.username || '';
+    const signerNip  = user?.nip  || '';
+    const period     = `${tanggalMulai} s/d ${tanggalSelesai}`;
+
+    const STATUS_COLOR = { SAKIT:'#b45309', IZIN:'#1d4ed8', ALPHA:'#dc2626', DISPENSASI:'#7c3aed', TERLAMBAT:'#c2410c' };
+    const STATUS_BG    = { SAKIT:'#fef9c3', IZIN:'#dbeafe', ALPHA:'#fee2e2', DISPENSASI:'#ede9fe', TERLAMBAT:'#ffedd5' };
+    const STATUS_LBL   = { SAKIT:'S', IZIN:'I', ALPHA:'A', DISPENSASI:'D', TERLAMBAT:'T' };
+
+    const tbody = tidakHadirData.map((row, i) => {
+      const bg = STATUS_BG[row.status] || '#fff';
+      const color = STATUS_COLOR[row.status] || '#111';
+      const lbl = STATUS_LBL[row.status] || row.status;
+      const stripe = i%2===1 ? '#f8fafc' : '#fff';
+      return `<tr>
+        <td style="padding:2px 4px;border:0.5px solid #e2e8f0;text-align:center;font-size:8px;background:${stripe}">${i+1}</td>
+        <td style="padding:2px 4px;border:0.5px solid #e2e8f0;font-size:8px;background:${stripe};font-weight:600">${row.siswa?.nama||'-'}</td>
+        <td style="padding:2px 4px;border:0.5px solid #e2e8f0;font-size:8px;background:${stripe}">${row.kelas?.nama||'-'}</td>
+        <td style="padding:2px 4px;border:0.5px solid #e2e8f0;text-align:center;font-size:8px;background:${stripe};font-family:monospace">${new Date(row.tanggal).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'})}</td>
+        <td style="padding:2px 4px;border:0.5px solid #e2e8f0;text-align:center;font-size:9px;font-weight:700;background:${bg};color:${color}">${lbl}</td>
+        <td style="padding:2px 4px;border:0.5px solid #e2e8f0;font-size:8px;background:${stripe};color:#555">${row.keterangan||'-'}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html lang="id"><head>
+    <meta charset="utf-8"/><title>Rekap Tidak Hadir</title>
+    <style>
+      @page { size:${psSize}; margin:10mm 8mm 12mm; }
+      *{ box-sizing:border-box; margin:0; padding:0; }
+      body{ font-family:Arial,sans-serif; font-size:9px; color:#111; }
+      .kop{ text-align:center; border-bottom:2px solid #1e293b; padding-bottom:5px; margin-bottom:5px; }
+      .kop-nama{ font-size:13px; font-weight:800; }
+      .kop-sub{ font-size:7.5px; color:#555; margin-top:1px; }
+      .judul{ font-size:11px; font-weight:700; text-align:center; margin:5px 0 2px; text-transform:uppercase; }
+      .period{ font-size:8px; text-align:center; color:#555; margin-bottom:6px; }
+      table{ border-collapse:collapse; width:100%; }
+      .legend{ font-size:7.5px; color:#555; margin-top:5px; }
+      .ttd{ display:flex; justify-content:flex-end; margin-top:14px; }
+      .ttd-box{ text-align:center; min-width:160px; line-height:1.8; font-size:8.5px; }
+      .ttd-name{ font-weight:700; }
+      @media print{ body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
+    </style></head><body>
+    <div class="kop">
+      <div class="kop-nama">${schoolName}</div>
+      <div class="kop-sub">${schoolAddr}${schoolPhone?' • Telp. '+schoolPhone:''}</div>
+    </div>
+    <div class="judul">Rekap Siswa Tidak Hadir</div>
+    <div class="period">Periode: ${period}</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:24px;background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 2px;text-align:center">No</th>
+          <th style="background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 5px;text-align:left">Nama Siswa</th>
+          <th style="width:80px;background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 4px">Kelas</th>
+          <th style="width:80px;background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 4px;text-align:center">Tanggal</th>
+          <th style="width:28px;background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 2px;text-align:center">Ket</th>
+          <th style="background:#1e293b;color:#fff;border:0.5px solid #475569;font-size:8px;padding:3px 5px;text-align:left">Keterangan</th>
+        </tr>
+      </thead>
+      <tbody>${tbody}</tbody>
+    </table>
+    <p class="legend">Ket: S=Sakit · I=Izin · A=Alpha · D=Dispensasi · T=Terlambat</p>
+    <p class="legend">Dicetak: ${new Date().toLocaleString('id-ID')} | Total: ${tidakHadirData.length} data</p>
+    <div class="ttd"><div class="ttd-box">
+      Kras, ${today}<br/>Petugas Piket,<br/><br/><br/>
+      <div class="ttd-name">${signerName||'___________________________'}</div>
+      ${signerNip?`NIP. ${signerNip}`:''}
+    </div></div>
+    </body></html>`;
+
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if (!w) { toast.error('Pop-up diblokir browser.'); return; }
+    w.document.write(html); w.document.close();
+    w.onload = () => { w.focus(); w.print(); };
+  };
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
 
@@ -843,6 +935,11 @@ export default function LaporanPage() {
           {reportType === 'matriks' && (
             <button onClick={handlePrintMatriks} className="btn btn-danger" style={{ gap:6 }}>
               <Printer style={{ width:15, height:15 }} /> Print Matriks
+            </button>
+          )}
+          {reportType === 'tidak-hadir' && (
+            <button onClick={handlePrintTidakHadir} className="btn btn-danger" style={{ gap:6 }}>
+              <Printer style={{ width:15, height:15 }} /> Print
             </button>
           )}
 
@@ -1188,6 +1285,92 @@ export default function LaporanPage() {
               );
             })()
           }
+        </div>
+      ) : reportType === 'tidak-hadir' ? (
+        /* ── Preview Rekap Tidak Hadir ── */
+        <div className="card" style={{ padding: 12, marginBottom: 24 }}>
+          {l5 ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {Array.from({length:6}).map((_,i) => (
+                <div key={i} style={{ height:36, borderRadius:8, background:'var(--color-surface-hover)', animation:'pulse 1.5s ease-in-out infinite' }} />
+              ))}
+            </div>
+          ) : !tidakHadirData?.length ? (
+            <div style={{ textAlign:'center', padding:'40px 0', color:'var(--color-muted)' }}>
+              <p style={{ fontSize:14 }}>
+                {tanggalMulai && tanggalSelesai
+                  ? 'Tidak ada siswa tidak hadir pada periode ini 🎉'
+                  : 'Pilih periode untuk melihat rekap tidak hadir'}
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Summary badge per status */}
+              <div style={{ display:'flex', gap:8, marginBottom:10, flexWrap:'wrap', alignItems:'center' }}>
+                <span style={{ fontSize:12, fontWeight:600, color:'var(--color-foreground)' }}>
+                  {tidakHadirData.length} data tidak hadir
+                </span>
+                {[
+                  { st:'SAKIT',      lbl:'S', color:'#b45309', bg:'#fef9c3' },
+                  { st:'IZIN',       lbl:'I', color:'#1d4ed8', bg:'#dbeafe' },
+                  { st:'ALPHA',      lbl:'A', color:'#dc2626', bg:'#fee2e2' },
+                  { st:'DISPENSASI', lbl:'D', color:'#7c3aed', bg:'#ede9fe' },
+                  { st:'TERLAMBAT',  lbl:'T', color:'#c2410c', bg:'#ffedd5' },
+                ].map(s => {
+                  const cnt = tidakHadirData.filter(r => r.status === s.st).length;
+                  if (!cnt) return null;
+                  return (
+                    <span key={s.st} style={{ padding:'2px 10px', borderRadius:6, fontSize:11, fontWeight:700, background:s.bg, color:s.color, border:`1px solid ${s.color}30` }}>
+                      {s.lbl} = {cnt}
+                    </span>
+                  );
+                })}
+              </div>
+
+              {/* Tabel */}
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ borderCollapse:'collapse', width:'100%', fontSize:12 }}>
+                  <thead>
+                    <tr>
+                      {['No','Nama Siswa','Kelas','Tanggal','Ket','Keterangan'].map(h => (
+                        <th key={h} style={{ padding:'6px 8px', background:'#1e293b', color:'#fff', border:'1px solid #475569', fontSize:11, textAlign: h==='No'||h==='Ket'||h==='Tanggal' ? 'center' : 'left', whiteSpace:'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tidakHadirData.map((row, i) => {
+                      const ST = {
+                        SAKIT:      { color:'#b45309', bg:'#fef9c3', lbl:'S' },
+                        IZIN:       { color:'#1d4ed8', bg:'#dbeafe', lbl:'I' },
+                        ALPHA:      { color:'#dc2626', bg:'#fee2e2', lbl:'A' },
+                        DISPENSASI: { color:'#7c3aed', bg:'#ede9fe', lbl:'D' },
+                        TERLAMBAT:  { color:'#c2410c', bg:'#ffedd5', lbl:'T' },
+                        PULANG_CEPAT:{ color:'#be185d', bg:'#fce7f3', lbl:'PC' },
+                        DINAS:      { color:'#0e7490', bg:'#cffafe', lbl:'DN' },
+                        LAINNYA:    { color:'#64748b', bg:'#f1f5f9', lbl:'L' },
+                      };
+                      const s = ST[row.status] || { color:'#111', bg:'transparent', lbl:row.status };
+                      const stripe = i%2===1 ? 'var(--color-surface-hover)' : 'transparent';
+                      return (
+                        <tr key={i}>
+                          <td style={{ padding:'5px 6px', border:'1px solid var(--color-border)', textAlign:'center', background:stripe, fontSize:11, color:'var(--color-muted)' }}>{i+1}</td>
+                          <td style={{ padding:'5px 8px', border:'1px solid var(--color-border)', background:stripe, fontWeight:600 }}>{row.siswa?.nama||'-'}</td>
+                          <td style={{ padding:'5px 8px', border:'1px solid var(--color-border)', background:stripe, fontSize:11 }}>{row.kelas?.nama||'-'}</td>
+                          <td style={{ padding:'5px 8px', border:'1px solid var(--color-border)', background:stripe, textAlign:'center', fontFamily:'monospace', fontSize:11 }}>
+                            {new Date(row.tanggal).toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' })}
+                          </td>
+                          <td style={{ padding:'5px 6px', border:'1px solid var(--color-border)', textAlign:'center', background:s.bg, color:s.color, fontWeight:700, fontSize:12 }}>
+                            {s.lbl}
+                          </td>
+                          <td style={{ padding:'5px 8px', border:'1px solid var(--color-border)', background:stripe, color:'var(--color-muted)', fontSize:11 }}>{row.keterangan||'-'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="card" style={{ padding:0, overflow:'hidden', marginBottom:24 }}>

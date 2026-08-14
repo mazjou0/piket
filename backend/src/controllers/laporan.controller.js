@@ -521,4 +521,41 @@ const getRekapAbsensiDetail = asyncHandler(async (req, res) => {
   return success(res, { tanggal: tanggalList, siswa: siswaResult });
 });
 
-module.exports = { getRekapAbsensi, getRekapPerKelas, getRekapPelanggaran, getRekapAbsensiDetail, exportPDF, exportExcel, exportCSV };
+// ── Rekap Tidak Hadir (S/I/A/D semua kelas) ─────────────────
+// Return: array absensi dengan status bukan HADIR, diurutkan tanggal desc
+const getRekapTidakHadir = asyncHandler(async (req, res) => {
+  const { tanggalMulai, tanggalSelesai, kelasId } = req.query;
+  if (!tanggalMulai || !tanggalSelesai) return badRequest(res, 'Tanggal wajib diisi');
+
+  const tglMulai = new Date(tanggalMulai);
+  const tglAkhir = new Date(tanggalSelesai);
+  tglAkhir.setHours(23, 59, 59, 999);
+
+  const where = {
+    tanggal: { gte: tglMulai, lte: tglAkhir },
+    status: { not: 'HADIR' },
+  };
+  if (kelasId) where.kelasId = kelasId;
+
+  const data = await prisma.absensi.findMany({
+    where,
+    orderBy: [{ tanggal: 'desc' }, { kelas: { nama: 'asc' } }],
+    select: {
+      id: true,
+      tanggal: true,
+      status: true,
+      keterangan: true,
+      siswa: { select: { id: true, nama: true, nis: true, nisn: true } },
+      kelas: { select: { id: true, nama: true } },
+    },
+    take: 2000,
+  });
+
+  return success(res, data);
+});
+
+module.exports = {
+  getRekapAbsensi, getRekapPerKelas, getRekapPelanggaran,
+  getRekapAbsensiDetail, getRekapTidakHadir,
+  exportPDF, exportExcel, exportCSV,
+};
