@@ -124,13 +124,13 @@ export default function LaporanPage() {
     let thead = '', tbody = '';
 
     if (reportType === 'absensi-siswa') {
-      thead = `<tr><th>No</th><th>NIS</th><th>Nama Siswa</th><th>Kelas</th><th>H</th><th>S</th><th>I</th><th>A</th><th>D</th><th>T</th><th>PC</th><th>DN</th><th>L</th><th>Total</th><th>%</th></tr>`;
+      thead = `<tr><th>No</th><th>NISN</th><th>Nama Siswa</th><th>Kelas</th><th>H</th><th>S</th><th>I</th><th>A</th><th>D</th><th>T</th><th>PC</th><th>DN</th><th>L</th><th>Total</th><th>%</th></tr>`;
       tbody = currentData.map((r, i) => {
         const t = r.total || 0;
         const p = t > 0 ? Math.round((r.hadir / t) * 100) : 0;
         return `<tr>
           <td class="c">${i+1}</td>
-          <td class="c mono">${r.siswa?.nis||'-'}</td>
+          <td class="c mono">${r.siswa?.nisn||r.siswa?.nis||'-'}</td>
           <td>${r.siswa?.nama||'-'}</td>
           <td>${r.siswa?.kelasHistori?.[0]?.kelas?.nama||'-'}</td>
           <td class="c g b">${r.hadir||0}</td>
@@ -168,12 +168,12 @@ export default function LaporanPage() {
         </tr>`;
       }).join('');
     } else {
-      thead = `<tr><th>No</th><th>NIS</th><th>Nama Siswa</th><th>Kelas</th><th>Jenis Pelanggaran</th><th>Poin</th><th>Tanggal</th></tr>`;
+      thead = `<tr><th>No</th><th>NISN</th><th>Nama Siswa</th><th>Kelas</th><th>Jenis Pelanggaran</th><th>Poin</th><th>Tanggal</th></tr>`;
       tbody = currentData.map((r, i) => {
         const p = r.poin || 0;
         return `<tr>
           <td class="c">${i+1}</td>
-          <td class="c mono">${r.siswa?.nis||'-'}</td>
+          <td class="c mono">${r.siswa?.nisn||r.siswa?.nis||'-'}</td>
           <td>${r.siswa?.nama||'-'}</td>
           <td>${r.kelas?.nama||'-'}</td>
           <td>${r.jenisPelanggaran?.nama||'-'}</td>
